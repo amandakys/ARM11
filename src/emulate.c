@@ -6,11 +6,14 @@
 #define MULTIPLY 2
 #define TRANSFER 3
 #define BRANCH 4
+<<<<<<< HEAD
 #define CPSR 16
 #define Nth = 31
 #define Zth = 30
 #define Cth = 29
 #define Vth = 28
+=======
+>>>>>>> 34192024def4a1cb5664c572b34e1b75bf23b9d8
 
 typedef struct _arm *Arm;
 typedef struct _process *Process;
@@ -129,7 +132,16 @@ void executeT(Transfer t) {
 
 }
 
-void executeB(Branch b) {
+void executeB(Arm a, Branch b) {
+
+
+    uint32_t MSB = (b -> Offset & 0x80000000) >> 31;
+    if (MSB = 0) {
+        a -> register[15] += Offset;
+    } else {
+        uint32_t unSigned = (~(b -> Offset) + 1);
+        b - > register[15] -= unSigned;
+    }
 
 }
 
@@ -200,21 +212,50 @@ int decode(Instruction components, uint32_t instruction) {
 
 void decodeT(Transfer t, uint32_t instruction) {
 
+<<<<<<< HEAD
     t -> Cond = (0xF0000000 & instruction) >> 28;
     t -> I =
     t -> P =
+=======
+    t -> I      = (0x02000000 & instruction) >> 25;
+    t -> P      = (0x01000000 & instruction) >> 24;
+    t -> U      = (0x00800000 & instruction) >> 23;
+    t -> L      = (0x00100000 & instruction) >> 20;
+    t -> Rn     = (0x000F0000 & instruction) >> 16;
+    t -> Rd     = (0x0000F000 & instruction) >> 12;
+    t -> Offset = (0x00000FFF & instruction);
+>>>>>>> 34192024def4a1cb5664c572b34e1b75bf23b9d8
 }
 
 void decodeP(Process p, uint32_t instruction) {
-    p -> Cond = (0xF0000000 & instruction) >> 28;
+
+    p -> I        = (0x02000000 & instruction) >> 25;
+    p -> Opcode   = (0x01E00000 & instruction) >> 21;
+    p -> S        = (0x00100000 & instruction) >> 20;
+    p -> Rn       = (0x000F0000 & instruction) >> 16;
+    p -> Rd       = (0x0000F000 & instruction) >> 12;
+    p -> Operand2 = (0x00000FFF & instruction);
 }
 
 void decodeM(Multiply m, uint32_t instruction) {
-    m -> Cond = (0xF0000000 & instruction) >> 28;
+
+    m -> A  = (0x00200000 & instruction) >> 21;
+    m -> S  = (0x00100000 & instruction) >> 20;
+    m -> Rd = (0x000F0000 & instruction) >> 16;
+    m -> Rn = (0x0000F000 & instruction) >> 12;
+    m -> Rs = (0x00000F00 & instruction) >> 8;
+    m -> Rm = (0x0000000F & instruction);
 }
 
 void decodeB(Branch b, uint32_t instruction) {
-    b -> Cond = (0xF0000000 & instruction) >> 28;
+
+
+    uint32_t MSB = (0x00800000 & Instruction) >> 23;
+    if (MSB = 1) {
+        b -> Offset = (0xFF000000 | Instruction) << 2;
+    } else {
+        b -> Offset = (0x00FFFFFF & Instruction) << 2;
+    }
 }
 
 
