@@ -7,7 +7,7 @@
 #define TRANSFER 3
 #define BRANCH 4
 <<<<<<< HEAD
-#define CPSR 16
+#define CPSRth 16
 #define Nth = 31
 #define Zth = 30
 #define Cth = 29
@@ -95,8 +95,8 @@ void executeM(Arm a, Multiply m) {
         registers[m->Rd] += registers[m->Rn];
     }
     if (m->S == 1) {
-        setN(registers[CPSR], registers[m->Rd]);
-        setZ(registers[CPSR], registers[m->Rd]);
+        setN(registers[CPSRth], registers[m->Rd]);
+        setZ(registers[CPSRth], registers[m->Rd]);
     }
 
 }
