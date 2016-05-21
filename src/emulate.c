@@ -7,7 +7,7 @@
 #define TRANSFER 3
 #define BRANCH 4
 <<<<<<< HEAD
-#define CPSR 16
+#define CPSRth 16
 #define Nth = 31
 #define Zth = 30
 #define Cth = 29
@@ -95,8 +95,8 @@ void executeM(Arm a, Multiply m) {
         registers[m->Rd] += registers[m->Rn];
     }
     if (m->S == 1) {
-        setN(registers[CPSR], registers[m->Rd]);
-        setZ(registers[CPSR], registers[m->Rd]);
+        setN(registers[CPSRth], registers[m->Rd]);
+        setZ(registers[CPSRth], registers[m->Rd]);
     }
 
 }
@@ -115,17 +115,9 @@ void setN(uint32_t cpsr, uint32_t result) {
 }
 
 void mul(uint32_t des, uint32_t first, uint32_t second) {
-    uint16_t firstH = first >> 16;
-    uint16_t firstL = first & 0xFFFF;
-    uint16_t secondH = second >> 16;
-    uint16_t secondL = second & 0xFFFF;
-    uint64_t result = firstH * secondH;
-    result <<= 16;
-    result += firstH * secondL;
-    result += firstL * secondH;
-    result <<= 16;
-    result += firstL * secondL;
-    des = result & 0xFFFFFFFF;
+    uint64_t result = (uint64_t) (first * second);
+    des = (uint32_t) (result & 0xFFFFFFFF);
+
 }
 
 void executeT(Transfer t) {
