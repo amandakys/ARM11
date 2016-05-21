@@ -89,7 +89,16 @@ void executeT(Transfer t) {
 
 }
 
-void executeB(Branch b) {
+void executeB(Arm a, Branch b) {
+
+
+    uint32_t MSB = (b -> Offset & 0x80000000) >> 31;
+    if (MSB = 0) {
+        a -> register[15] += Offset;
+    } else {
+        uint32_t unSigned = (~(b -> Offset) + 1);
+        b - > register[15] -= unSigned;
+    }
 
 }
 
@@ -191,7 +200,13 @@ void decodeM(Multiply m, uint32_t instruction) {
 
 void decodeB(Branch b, uint32_t instruction) {
 
-    b -> Offset = (0x00FFFFFF & instruction);
+
+    uint32_t MSB = (0x00800000 & Instruction) >> 23;
+    if (MSB = 1) {
+        b -> Offset = (0xFF000000 | Instruction) << 2;
+    } else {
+        b -> Offset = (0x00FFFFFF & Instruction) << 2;
+    }
 }
 
 
