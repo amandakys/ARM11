@@ -7,14 +7,11 @@
 #define MULTIPLY 2
 #define TRANSFER 3
 #define BRANCH 4
-<<<<<<< HEAD
 #define CPSRth 16
 #define Nth = 31
 #define Zth = 30
 #define Cth = 29
 #define Vth = 28
-=======
->>>>>>> 34192024def4a1cb5664c572b34e1b75bf23b9d8
 
 typedef struct _arm *Arm;
 typedef struct _process *Process;
@@ -26,13 +23,10 @@ typedef struct _instruction *Instruction;
 typedef struct _arm {
     uint32_t registers[17];
     //register 15 is PC
-<<<<<<< HEAD
+
 
     uint32_t memory[2048];
 } arm; 
-=======
-} arm;
->>>>>>> ffb2362c91442d3e428d47b9b2b2b3666d0d2f08
 
 typedef struct _instruction {
     uint32_t Cond;
@@ -194,9 +188,6 @@ uint32_t asr (uint32_t value, int shift) {
 
 }
 
-<<<<<<< HEAD
-void executeM(Multiply m) {
-=======
 void executeM(Arm a, Multiply m) {
     mul(registers[m->Rd], registers[m->Rm], registers[m->Rs]);
     if (m->A == 1) {
@@ -206,7 +197,6 @@ void executeM(Arm a, Multiply m) {
         setN(registers[CPSRth], registers[m->Rd]);
         setZ(registers[CPSRth], registers[m->Rd]);
     }
->>>>>>> ffb2362c91442d3e428d47b9b2b2b3666d0d2f08
 
 }
 
@@ -336,12 +326,6 @@ int decode(Instruction components, uint32_t instruction) {
 }
 
 void decodeT(Transfer t, uint32_t instruction) {
-
-<<<<<<< HEAD
-    t -> Cond = (0xF0000000 & instruction) >> 28;
-    t -> I =
-    t -> P =
-=======
     t -> I      = (0x02000000 & instruction) >> 25;
     t -> P      = (0x01000000 & instruction) >> 24;
     t -> U      = (0x00800000 & instruction) >> 23;
@@ -349,7 +333,6 @@ void decodeT(Transfer t, uint32_t instruction) {
     t -> Rn     = (0x000F0000 & instruction) >> 16;
     t -> Rd     = (0x0000F000 & instruction) >> 12;
     t -> Offset = (0x00000FFF & instruction);
->>>>>>> 34192024def4a1cb5664c572b34e1b75bf23b9d8
 }
 
 void decodeP(Process p, uint32_t instruction) {
@@ -415,7 +398,6 @@ int main (int argc, char** argv) {
         a -> memory[i] = 0;
     }
 
-<<<<<<< HEAD
     FILE* fp; 
     fp = fopen(argv[0], "rb"); 
     fread(a -> memory, 4, sizeof (a -> memory), fp); //adjust parameters 
@@ -424,17 +406,6 @@ int main (int argc, char** argv) {
     for (int y = 0; y < 17; y++) {
         for (int x = 0, x < 32; x++) {
             a -> registers[y][x] = 0; 
-=======
-    FILE* fp;
-    fp = fopen(argv[0], "rb");
-    fread(memory, 4, sizeof memory, fp); //adjust parameters
-
-    //initialise registers to 0
-    struct arm a1;
-    for (int y = 0; y < 17; y++) {
-        for (int x = 0, x < 32; x++) {
-            a1.registers[y][x] = 0;
->>>>>>> ffb2362c91442d3e428d47b9b2b2b3666d0d2f08
         }
     }
 
