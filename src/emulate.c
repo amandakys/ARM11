@@ -129,7 +129,31 @@ void mul(uint32_t des, uint32_t first, uint32_t second) {
 }
 
 void executeT(Transfer t) {
-
+    //Check if immediate offset or as shifted register
+    if(t -> I == 1) {
+        //Offset as shifted register
+        t -> Offset = computeShiftedOffset(t -> Offset);
+    } else {
+        //Immediate Offset, Do nothing
+    }
+    //Check if load from or to memory
+    if(t -> L == 1) {
+        //Load from memory
+        a -> registers[Rd] = a -> memory[Rn];
+    } else {
+        //Load to memory
+        a -> memory[Rn] = a -> registers[Rd];
+    }
+    //Check for Post-indexing after transfer
+    if(t -> P == 0) {
+        if(t -> U == 1) {
+            a -> registers[Rn] += a -> Offset;
+        } else {
+            a -> registers[Rn] -= a -> Offset;
+        }
+    } else {
+        //Pre-indexing, no changes to Rn (according to specs)
+    }
 }
 
 void executeB(Arm a, Branch b) {
