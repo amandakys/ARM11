@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <math.h>
 
 #define PROCESSING 1
 #define MULTIPLY 2
@@ -17,6 +18,8 @@ typedef struct _instruction *Instruction;
 typedef struct _arm {
     uint32_t registers[17];
     //register 15 is PC
+
+    uint32_t memory[2048];
 } arm; 
 
 typedef struct _instruction {
@@ -77,11 +80,109 @@ FEcycle() {
     
 }
 
-void executeP(Process p) {
+void executeP(Arm a, Process p) {
+    uint32_t op2Value; 
+    uint32_t carry; 
+    if (p-> I == 1) {
+        //Operand 2 is immediate constant 
+        uint32_t value = 0x000000FF & (p -> Operand2);
+        uint32_t rotate = (0x00000F00 & (p -> Operand2)) >> 8;
+        int numRotations = rotate * 2; 
+        
+        op2Value = ror(value, numRotations - 1);
+        carry = 0x00000001 & op2Value;
+        op2Value = ror (op2Value, 1);
+
+
+    } else {
+        //Operand 2 is a shift register 
+        uint32_t Rm = 0x0000000F & (p->Operand2); //address of value to be shifted 
+        uint32_t value = a -> registers[Rm];
+        uint32_t shift = (0x00000FF0 & (p->Operand2)) >> 4;
+        uint32_t bit4 = 0x00000001 & shift; 
+        uint32_t shiftType = 0x00000006 & shift; >> 1; 
+
+        if (bit4 == 0) {
+            //shift by a constant amount
+            uint32_t shiftAmount = 0x000000F8 & shift; 
+        } else {
+            //shift by a register
+            uint32_t Rs = (0x000000F0 & shift) >> 4; 
+            uint32_t shiftAmount = 0x0000000F & (a->registers[Rs]);
+        }
+
+        switch (shiftType) {
+            0: 
+                op2Value = value << shiftAmount - 1;
+                carry = (0x80000000 & op2Value) >> 31;
+                op2Value = op2Value << 1; 
+
+            1: 
+                op2Value = value >> shiftAmount - 1;
+                carry = 0x00000001 & op2Value;
+                op2Value = op2Value >> 1;
+
+            2: 
+                op2Value = asr(value, shiftAmount - 1);
+                carry = 0x00000001 & op2Value;
+                op2Value = asr(value, 1);
+            3: 
+                op2Value = ror(value, shiftAmount - 1);
+                carry = 0x00000001 & op2Value;
+                op2Value = ror (op2Value, 1);
+
+        }
+    }
+
+    uint32_t op1Value = a->registers[p->Rn];
+    switch (p -> Opcode) {
+        0: 
+            a->registers[p->Rd] = op1Value & op2Value; 
+            if (p->S == 1) {
+                a -> registers[CPSR] = a->registers[CPSR] & ~(1<<30) | (carry << 30); //set the C flag in CPSR
+            }
+        1:
+        2:
+        3:
+        4:
+        8:
+        9:
+        10:
+        12:
+        13:
+    }
+
+    if (p -> S == 1) {
+
+    } else {
+        //CPSR is unaffected 
+    }
 
 }
 
-void executeM(Multiply p) {
+uint32_t Op2Register (uint32_t Operand2) {
+    
+}
+
+uint32_t ror (uint32_t value, int shift) {
+    if ((shift &= 31) == 0) {
+        return value; 
+    } else {
+        return (value >> shift) | (value << (32 - shift)); 
+    }
+}
+
+uint32_t asr (uint32_t value, int shift) {
+    if (0x80000000 & value >> 31 == 1) {
+        uint32_t mask = (pow(2, shift) - 1) << (32 - shift); 
+        return (value >> shift) | mask; 
+    } else {
+        return value >> shift; 
+    }
+
+}
+
+void executeM(Multiply m) {
 
 }
 
@@ -203,21 +304,20 @@ int main (int argc, char** argv) {
     //fread to create 
     //create memory array with 65536 bits 
 
-    uint32_t memory[2048];
+    Arm a = malloc (sizeof (struct _arm));
 
     for (int i = 0; i < 65536; i++) {
-        memory[i] = 0;
+        a -> memory[i] = 0;
     }
 
     FILE* fp; 
     fp = fopen(argv[0], "rb"); 
-    fread(memory, 4, sizeof memory, fp); //adjust parameters 
+    fread(a -> memory, 4, sizeof (a -> memory), fp); //adjust parameters 
 
     //initialise registers to 0
-    struct arm a1; 
     for (int y = 0; y < 17; y++) {
         for (int x = 0, x < 32; x++) {
-            a1.registers[y][x] = 0; 
+            a -> registers[y][x] = 0; 
         }
     }
 
