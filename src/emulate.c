@@ -26,7 +26,7 @@ typedef struct _arm {
 
 
     uint32_t memory[2048];
-} arm; 
+} arm;
 
 typedef struct _instruction {
     uint32_t Cond;
@@ -87,14 +87,14 @@ FEcycle() {
 }
 
 void executeP(Arm a, Process p) {
-    uint32_t op2Value; 
-    uint32_t carry; 
+    uint32_t op2Value;
+    uint32_t carry;
     if (p-> I == 1) {
-        //Operand 2 is immediate constant 
+        //Operand 2 is immediate constant
         uint32_t value = 0x000000FF & (p -> Operand2);
         uint32_t rotate = (0x00000F00 & (p -> Operand2)) >> 8;
-        int numRotations = rotate * 2; 
-        
+        int numRotations = rotate * 2;
+
         op2Value = ror(value, numRotations - 1);
         carry = 0x00000001 & op2Value;
         op2Value = ror (op2Value, 1);
@@ -120,11 +120,7 @@ void executeP(Arm a, Process p) {
         1:  
             result = op1Value ^ op2Value; 
             setResult(a, p, result);
-            if (p->S == 1) {
-                setCLogic(a, carry);
-                setZ(a, result);
-                setN(a, result);
-            }
+        
         2:
             result = op1Value - op2Value;
             setResult(a, p, result);
@@ -156,15 +152,14 @@ void executeP(Arm a, Process p) {
             }
     }
 
-    if (p -> S == 1) {
-
-    } else {
-        //CPSR is unaffected 
-    }
 
 }
 
-void setCPSR(Arm a, )
+
+void setCPSR(Arm a, ) {
+
+}
+
 void setCLogic(Arm a, uint32_t carry) {
     a -> registers[CPSRth] = a->registers[CPSRth] & ~(1<<30) | (carry << 30); //set the C flag in CPSR
 }
@@ -238,79 +233,83 @@ uint32_t Op2Register (uint32_t Operand2) { //given p->Operand2 it returns the va
     }
 
     return op2Value;
+=======
+uint32_t Op2Register (uint32_t Operand2) {
+
+>>>>>>> 1a7fc52e1bdde5cd674993a9381f759ccf94a7c0
 }
 
 uint32_t ror (uint32_t value, int shift) {
     if ((shift &= 31) == 0) {
-        return value; 
+        return value;
     } else {
-        return (value >> shift) | (value << (32 - shift)); 
+        return (value >> shift) | (value << (32 - shift));
     }
 }
 
 uint32_t asr (uint32_t value, int shift) {
     if (0x80000000 & value >> 31 == 1) {
-        uint32_t mask = (pow(2, shift) - 1) << (32 - shift); 
-        return (value >> shift) | mask; 
+        uint32_t mask = (pow(2, shift) - 1) << (32 - shift);
+        return (value >> shift) | mask;
     } else {
-        return value >> shift; 
+        return value >> shift;
     }
 
 }
 
 void executeM(Arm a, Multiply m) {
-    mul(registers[m->Rd], registers[m->Rm], registers[m->Rs]);
+    mul(a->registers[m->Rd], a->registers[m->Rm], a->registers[m->Rs]);
     if (m->A == 1) {
-        registers[m->Rd] += registers[m->Rn];
+        a->registers[m->Rd] += a->registers[m->Rn];
     }
     if (m->S == 1) {
-        setN(registers[CPSRth], registers[m->Rd]);
-        setZ(registers[CPSRth], registers[m->Rd]);
+        setN(a,m);
+        setZ(a,m);
     }
 
 }
 
-void setZ(uint32_t cpsr, uint32_t result) {
-    if (cpsr == 0) {
-        cpsr |= 1 << Zth;
+void setZ(Arm a, Multiply m) {
+    if (a->registers[m->Rd] == 0) {
+        a->registers[CPSRth] |= 1 << Zth;
     } else {
-        cpsr &= ~(1 << Zth);
+        a->registers[CPSRth] &= ~(1 << Zth);
     }
 }
 
-void setN(uint32_t cpsr, uint32_t result) {
-    int bit31 =  RD >> Nth;
-    cpsr = cpsr & ~(1 << Nth) | (bit31 << Nth);
+void setN(Arm a, Multiply m) {
+    int bit31 =  a->registers[m->Rd] >> Nth;
+    a->registers[CPSRth] = a->registers[CPSRth] & ~(1 << Nth) | (bit31 << Nth);
 }
 
-void mul(uint32_t des, uint32_t first, uint32_t second) {
-    uint64_t result = (uint64_t) (first * second);
-    des = (uint32_t) (result & 0xFFFFFFFF);
+void mul(Arm a, Multiply m) {
+    uint64_t result = (uint64_t) (a->registers[m->Rm] * a->registers[m->Rs]);
+    a->registers[m->Rd] = (uint32_t) (result & 0xFFFFFFFF);
 
 }
 
 void executeT(Transfer t) {
     //Check if immediate offset or as shifted register
     if(t -> I == 1) {
-        //Offset as shifted register
-        t -> Offset = computeShiftedOffset(t -> Offset);
+        //Offset as shifted register(Op2Register is helper func of executeP)
+        t -> Offset = Op2Register(t -> Offset);
     } else {
         //Immediate Offset, Do nothing
     }
     //Check if load from or to memory
     if(t -> L == 1) {
         //Load from memory
-        a -> registers[Rd] = a -> memory[Rn];
+        a -> registers[t -> Rd] = a -> memory[t -> Rn];
     } else {
         //Load to memory
-        a -> memory[Rn] = a -> registers[Rd];
+        a -> memory[t -> Rn] = a -> registers[t -> Rd];
     }
     //Check for Post-indexing after transfer
     if(t -> P == 0) {
         if(t -> U == 1) {
-            a -> registers[Rn] += a -> Offset;
+            a -> registers[t -> Rn] += a -> Offset;
         } else {
-            a -> registers[Rn] -= a -> Offset;
+            a -> registers[t -> Rn] -= a -> Offset;
         }
     } else {
         //Pre-indexing, no changes to Rn (according to specs)
@@ -318,7 +317,10 @@ void executeT(Transfer t) {
 }
 
 void executeB(Arm a, Branch b) {
-
+    // The offset was already sign-extended and shifted by 2 positions
+    // to the right when passed to this function. If the offset is positive
+    // it simply adds it to the PC and if it's negative it changes it
+    // to the respective positive value and then decrements it from PC
 
     uint32_t MSB = (b -> Offset & 0x80000000) >> 31;
     if (MSB = 0) {
@@ -373,27 +375,20 @@ int decode(Instruction components, uint32_t instruction) {
         return BRANCH;
     } else {
         mask = 0x02000000;
-        if (instruction&mask == 1) {
+        mask2 = 0x000000F0;
+        if (instruction&mask == 1 || instruction&mask2 != 9) {
             //data processing
             components -> p = malloc (sizeof (struct _processing));
             decodeP(p, instruction);
             return PROCESSING;
-        } else { //they are both 000
-            mask = 0x000000F0;
-            if (instruction&mask == 9) {
-                //multiply
-                components -> m = malloc (sizeof (struct _multiply));
-                decodeM(m, instruction);
-                return MULTIPLY;
-            } else {
-                //data processing
-                components -> p = malloc (sizeof (struct _processing));
-                decodeP(p, instruction);
-                return PROCESSING;
-            }
+        } else {
+            components -> m = malloc (sizeof (struct _multiply));
+            decodeM(m, instruction);
+            return MULTIPLY;
         }
     }
 }
+
 
 void decodeT(Transfer t, uint32_t instruction) {
     t -> I      = (0x02000000 & instruction) >> 25;
@@ -468,14 +463,14 @@ int main (int argc, char** argv) {
         a -> memory[i] = 0;
     }
 
-    FILE* fp; 
-    fp = fopen(argv[0], "rb"); 
-    fread(a -> memory, 4, sizeof (a -> memory), fp); //adjust parameters 
+    FILE* fp;
+    fp = fopen(argv[0], "rb");
+    fread(a -> memory, 4, sizeof (a -> memory), fp); //adjust parameters
 
     //initialise registers to 0
     for (int y = 0; y < 17; y++) {
         for (int x = 0, x < 32; x++) {
-            a -> registers[y][x] = 0; 
+            a -> registers[y][x] = 0;
         }
     }
 
@@ -499,9 +494,3 @@ while ( instructions not empty) {
     fetch
     decode
     execute
-
-
-
-
-
-
