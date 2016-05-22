@@ -248,7 +248,10 @@ void executeT(Transfer t) {
 }
 
 void executeB(Arm a, Branch b) {
-
+    // The offset was already sign-extended and shifted by 2 positions
+    // to the right when passed to this function. If the offset is positive
+    // it simply adds it to the PC and if it's negative it changes it
+    // to the respective positive value and then decrements it from PC
 
     uint32_t MSB = (b -> Offset & 0x80000000) >> 31;
     if (MSB = 0) {
@@ -303,27 +306,20 @@ int decode(Instruction components, uint32_t instruction) {
         return BRANCH;
     } else {
         mask = 0x02000000;
-        if (instruction&mask == 1) {
+        mask2 = 0x000000F0;
+        if (instruction&mask == 1 || instruction&mask2 != 9) {
             //data processing
             components -> p = malloc (sizeof (struct _processing));
             decodeP(p, instruction);
             return PROCESSING;
-        } else { //they are both 000
-            mask = 0x000000F0;
-            if (instruction&mask == 9) {
-                //multiply
-                components -> m = malloc (sizeof (struct _multiply));
-                decodeM(m, instruction);
-                return MULTIPLY;
-            } else {
-                //data processing
-                components -> p = malloc (sizeof (struct _processing));
-                decodeP(p, instruction);
-                return PROCESSING;
-            }
+        } else {
+            components -> m = malloc (sizeof (struct _multiply));
+            decodeM(m, instruction);
+            return MULTIPLY;
         }
     }
 }
+
 
 void decodeT(Transfer t, uint32_t instruction) {
     t -> I      = (0x02000000 & instruction) >> 25;
