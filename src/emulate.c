@@ -26,7 +26,7 @@ typedef struct _arm {
 
 
     uint32_t memory[2048];
-} arm; 
+} arm;
 
 typedef struct _instruction {
     uint32_t Cond;
@@ -87,52 +87,52 @@ FEcycle() {
 }
 
 void executeP(Arm a, Process p) {
-    uint32_t op2Value; 
-    uint32_t carry; 
+    uint32_t op2Value;
+    uint32_t carry;
     if (p-> I == 1) {
-        //Operand 2 is immediate constant 
+        //Operand 2 is immediate constant
         uint32_t value = 0x000000FF & (p -> Operand2);
         uint32_t rotate = (0x00000F00 & (p -> Operand2)) >> 8;
-        int numRotations = rotate * 2; 
-        
+        int numRotations = rotate * 2;
+
         op2Value = ror(value, numRotations - 1);
         carry = 0x00000001 & op2Value;
         op2Value = ror (op2Value, 1);
 
 
     } else {
-        //Operand 2 is a shift register 
-        uint32_t Rm = 0x0000000F & (p->Operand2); //address of value to be shifted 
+        //Operand 2 is a shift register
+        uint32_t Rm = 0x0000000F & (p->Operand2); //address of value to be shifted
         uint32_t value = a -> registers[Rm];
         uint32_t shift = (0x00000FF0 & (p->Operand2)) >> 4;
-        uint32_t bit4 = 0x00000001 & shift; 
-        uint32_t shiftType = 0x00000006 & shift; >> 1; 
+        uint32_t bit4 = 0x00000001 & shift;
+        uint32_t shiftType = 0x00000006 & shift; >> 1;
 
         if (bit4 == 0) {
             //shift by a constant amount
-            uint32_t shiftAmount = 0x000000F8 & shift; 
+            uint32_t shiftAmount = 0x000000F8 & shift;
         } else {
             //shift by a register
-            uint32_t Rs = (0x000000F0 & shift) >> 4; 
+            uint32_t Rs = (0x000000F0 & shift) >> 4;
             uint32_t shiftAmount = 0x0000000F & (a->registers[Rs]);
         }
 
         switch (shiftType) {
-            0: 
+            0:
                 op2Value = value << shiftAmount - 1;
                 carry = (0x80000000 & op2Value) >> 31;
-                op2Value = op2Value << 1; 
+                op2Value = op2Value << 1;
 
-            1: 
+            1:
                 op2Value = value >> shiftAmount - 1;
                 carry = 0x00000001 & op2Value;
                 op2Value = op2Value >> 1;
 
-            2: 
+            2:
                 op2Value = asr(value, shiftAmount - 1);
                 carry = 0x00000001 & op2Value;
                 op2Value = asr(value, 1);
-            3: 
+            3:
                 op2Value = ror(value, shiftAmount - 1);
                 carry = 0x00000001 & op2Value;
                 op2Value = ror (op2Value, 1);
@@ -142,8 +142,8 @@ void executeP(Arm a, Process p) {
 
     uint32_t op1Value = a->registers[p->Rn];
     switch (p -> Opcode) {
-        0: 
-            a->registers[p->Rd] = op1Value & op2Value; 
+        0:
+            a->registers[p->Rd] = op1Value & op2Value;
             if (p->S == 1) {
                 a -> registers[CPSR] = a->registers[CPSR] & ~(1<<30) | (carry << 30); //set the C flag in CPSR
             }
@@ -161,29 +161,29 @@ void executeP(Arm a, Process p) {
     if (p -> S == 1) {
 
     } else {
-        //CPSR is unaffected 
+        //CPSR is unaffected
     }
 
 }
 
 uint32_t Op2Register (uint32_t Operand2) {
-    
+
 }
 
 uint32_t ror (uint32_t value, int shift) {
     if ((shift &= 31) == 0) {
-        return value; 
+        return value;
     } else {
-        return (value >> shift) | (value << (32 - shift)); 
+        return (value >> shift) | (value << (32 - shift));
     }
 }
 
 uint32_t asr (uint32_t value, int shift) {
     if (0x80000000 & value >> 31 == 1) {
-        uint32_t mask = (pow(2, shift) - 1) << (32 - shift); 
-        return (value >> shift) | mask; 
+        uint32_t mask = (pow(2, shift) - 1) << (32 - shift);
+        return (value >> shift) | mask;
     } else {
-        return value >> shift; 
+        return value >> shift;
     }
 
 }
@@ -222,25 +222,25 @@ void mul(uint32_t des, uint32_t first, uint32_t second) {
 void executeT(Transfer t) {
     //Check if immediate offset or as shifted register
     if(t -> I == 1) {
-        //Offset as shifted register
-        t -> Offset = computeShiftedOffset(t -> Offset);
+        //Offset as shifted register(Op2Register is helper func of executeP)
+        t -> Offset = Op2Register(t -> Offset);
     } else {
         //Immediate Offset, Do nothing
     }
     //Check if load from or to memory
     if(t -> L == 1) {
         //Load from memory
-        a -> registers[Rd] = a -> memory[Rn];
+        a -> registers[t -> Rd] = a -> memory[t -> Rn];
     } else {
         //Load to memory
-        a -> memory[Rn] = a -> registers[Rd];
+        a -> memory[t -> Rn] = a -> registers[t -> Rd];
     }
     //Check for Post-indexing after transfer
     if(t -> P == 0) {
         if(t -> U == 1) {
-            a -> registers[Rn] += a -> Offset;
+            a -> registers[t -> Rn] += a -> Offset;
         } else {
-            a -> registers[Rn] -= a -> Offset;
+            a -> registers[t -> Rn] -= a -> Offset;
         }
     } else {
         //Pre-indexing, no changes to Rn (according to specs)
@@ -398,14 +398,14 @@ int main (int argc, char** argv) {
         a -> memory[i] = 0;
     }
 
-    FILE* fp; 
-    fp = fopen(argv[0], "rb"); 
-    fread(a -> memory, 4, sizeof (a -> memory), fp); //adjust parameters 
+    FILE* fp;
+    fp = fopen(argv[0], "rb");
+    fread(a -> memory, 4, sizeof (a -> memory), fp); //adjust parameters
 
     //initialise registers to 0
     for (int y = 0; y < 17; y++) {
         for (int x = 0, x < 32; x++) {
-            a -> registers[y][x] = 0; 
+            a -> registers[y][x] = 0;
         }
     }
 
@@ -429,9 +429,3 @@ while ( instructions not empty) {
     fetch
     decode
     execute
-
-
-
-
-
-
