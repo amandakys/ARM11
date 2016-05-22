@@ -102,60 +102,58 @@ void executeP(Arm a, Process p) {
 
     } else {
         //Operand 2 is a shift register 
-        uint32_t Rm = 0x0000000F & (p->Operand2); //address of value to be shifted 
-        uint32_t value = a -> registers[Rm];
-        uint32_t shift = (0x00000FF0 & (p->Operand2)) >> 4;
-        uint32_t bit4 = 0x00000001 & shift; 
-        uint32_t shiftType = 0x00000006 & shift; >> 1; 
-
-        if (bit4 == 0) {
-            //shift by a constant amount
-            uint32_t shiftAmount = 0x000000F8 & shift; 
-        } else {
-            //shift by a register
-            uint32_t Rs = (0x000000F0 & shift) >> 4; 
-            uint32_t shiftAmount = 0x0000000F & (a->registers[Rs]);
-        }
-
-        switch (shiftType) {
-            0: 
-                op2Value = value << shiftAmount - 1;
-                carry = (0x80000000 & op2Value) >> 31;
-                op2Value = op2Value << 1; 
-
-            1: 
-                op2Value = value >> shiftAmount - 1;
-                carry = 0x00000001 & op2Value;
-                op2Value = op2Value >> 1;
-
-            2: 
-                op2Value = asr(value, shiftAmount - 1);
-                carry = 0x00000001 & op2Value;
-                op2Value = asr(value, 1);
-            3: 
-                op2Value = ror(value, shiftAmount - 1);
-                carry = 0x00000001 & op2Value;
-                op2Value = ror (op2Value, 1);
-
-        }
+        op2Value = Op2Register(p->Operand2);
+        carry = calculateCarry(p->Operand2);
     }
 
     uint32_t op1Value = a->registers[p->Rn];
+    uint32_t result; 
     switch (p -> Opcode) {
         0: 
-            a->registers[p->Rd] = op1Value & op2Value; 
+            result = op1Value & op2Value; 
+            setResult(a, p, result);
             if (p->S == 1) {
-                a -> registers[CPSR] = a->registers[CPSR] & ~(1<<30) | (carry << 30); //set the C flag in CPSR
+                setCLogic(a, carry);
+                setZ(a, result);
+                setN(a, result);
             }
-        1:
+        1:  
+            result = op1Value ^ op2Value; 
+            setResult(a, p, result);
+            if (p->S == 1) {
+                setCLogic(a, carry);
+                setZ(a, result);
+                setN(a, result);
+            }
         2:
+            result = op1Value - op2Value;
+            setResult(a, p, result);
         3:
+            a->registers[p->Rd] = op2Value - op1Value;
+            setResult(a, p, result);
         4:
+            a->registers[p->Rd] = op1Value + op2Value;
+            setResult(a, p, result);
         8:
         9:
         10:
+
         12:
+            result = op1Value | op2Value;
+            setResult(a, p, result);
+            if (p->S == 1) {
+                setCLogic(a, carry);
+                setZ(a, result);
+                setN(a, result);
+            }
         13:
+            result = op2Value;
+            setResult(a, p, result);
+            if (p->S == 1) {
+                setCLogic(a, carry);
+                setZ(a, result);
+                setN(a, result);
+            }
     }
 
     if (p -> S == 1) {
@@ -166,8 +164,80 @@ void executeP(Arm a, Process p) {
 
 }
 
-uint32_t Op2Register (uint32_t Operand2) {
+void setCPSR(Arm a, )
+void setCLogic(Arm a, uint32_t carry) {
+    a -> registers[CPSRth] = a->registers[CPSRth] & ~(1<<30) | (carry << 30); //set the C flag in CPSR
+}
+
+void setCArithmetic(Arm a, uint32_t result) {
+    uint32_t bit31 = 0x40000000 & result
+}
+
+void setResult(Arm a, Process p, uint32_t result) {
+    a->registers[p->Rd] = result;
+}
+
+void performOperation() {
+
+}
+
+void changeCPSR() {
+
+}
+
+uint32_t calculateShiftAmount(uint32_t Operand2) {
+    uint32_t shift = (0x00000FF0 & (p->Operand2)) >> 4;
+    uint32_t bit4 = 0x00000001 & shift; 
+    uint32_t shiftAmount;
+    if (bit4 == 0) {
+            //shift by a constant amount
+            shiftAmount = 0x000000F8 & shift; 
+    } else {
+        //shift by a register
+        uint32_t Rs = (0x000000F0 & shift) >> 4; 
+        shiftAmount = 0x0000000F & (a->registers[Rs]);
+    }
+
+    return shiftAmount;
+
+}
+
+uint32_t calculateCarry(uint32_t Operand2) {
+    uint32_t Rm = 0x0000000F & (p->Operand2); 
+    uint32_t value = a -> registers[Rm];
+    uint32_t shift = (0x00000FF0 & (p->Operand2)) >> 4;
+    uint32_t shiftType = 0x00000006 & shift; >> 1; 
+    uint32_t shiftAmount = calculateShiftAmount(Operand2);
     
+    switch (shiftType) {
+            0: carry = (0x80000000 & (value << shiftAmount - 1)) >> 31;
+
+            1: carry = 0x00000001 & (value >> shiftAmount - 1);
+
+            2: carry = 0x00000001 & (asr(value, shiftAmount - 1));
+
+            3: carry = 0x00000001 & (ror(value, shiftAmount - 1));
+
+    }
+
+    return carry; 
+}
+
+uint32_t Op2Register (uint32_t Operand2) { //given p->Operand2 it returns the value of op2
+    uint32_t Rm = 0x0000000F & (p->Operand2); 
+    uint32_t value = a -> registers[Rm];
+    uint32_t shift = (0x00000FF0 & (p->Operand2)) >> 4;
+    uint32_t shiftType = 0x00000006 & shift; >> 1; 
+    uint32_t shiftAmount = calculateShiftAmount(Operand2);
+
+    switch (shiftType) {
+        0: op2Value = value << shiftAmount;
+        1: op2Value = value >> shiftAmount;
+        2: op2Value = asr(value, shiftAmount);
+        3: op2Value = ror(value, shiftAmount);
+    }
+
+    return op2Value;
 }
 
 uint32_t ror (uint32_t value, int shift) {
