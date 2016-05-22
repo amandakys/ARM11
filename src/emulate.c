@@ -189,33 +189,33 @@ uint32_t asr (uint32_t value, int shift) {
 }
 
 void executeM(Arm a, Multiply m) {
-    mul(registers[m->Rd], registers[m->Rm], registers[m->Rs]);
+    mul(a->registers[m->Rd], a->registers[m->Rm], a->registers[m->Rs]);
     if (m->A == 1) {
-        registers[m->Rd] += registers[m->Rn];
+        a->registers[m->Rd] += a->registers[m->Rn];
     }
     if (m->S == 1) {
-        setN(registers[CPSRth], registers[m->Rd]);
-        setZ(registers[CPSRth], registers[m->Rd]);
+        setN(a,m);
+        setZ(a,m);
     }
 
 }
 
-void setZ(uint32_t cpsr, uint32_t result) {
-    if (cpsr == 0) {
-        cpsr |= 1 << Zth;
+void setZ(Arm a, Multiply m) {
+    if (a->registers[m->Rd] == 0) {
+        a->registers[CPSRth] |= 1 << Zth;
     } else {
-        cpsr &= ~(1 << Zth);
+        a->registers[CPSRth] &= ~(1 << Zth);
     }
 }
 
-void setN(uint32_t cpsr, uint32_t result) {
-    int bit31 =  RD >> Nth;
-    cpsr = cpsr & ~(1 << Nth) | (bit31 << Nth);
+void setN(Arm a, Multiply m) {
+    int bit31 =  a->registers[m->Rd] >> Nth;
+    a->registers[CPSRth] = a->registers[CPSRth] & ~(1 << Nth) | (bit31 << Nth);
 }
 
-void mul(uint32_t des, uint32_t first, uint32_t second) {
-    uint64_t result = (uint64_t) (first * second);
-    des = (uint32_t) (result & 0xFFFFFFFF);
+void mul(Arm a, Multiply m) {
+    uint64_t result = (uint64_t) (a->registers[m->Rm] * a->registers[m->Rs]);
+    a->registers[m->Rd] = (uint32_t) (result & 0xFFFFFFFF);
 
 }
 
