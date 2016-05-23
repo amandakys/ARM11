@@ -76,7 +76,7 @@ uint32_t fetch(Arm a);
 
 
 uint32_t add (uint32_t x, uint32_t y) {
-    return x ^ y;
+    return x + y;
 }
 
 uint32_t addCarry(uint32_t x, uint32_t y) {
@@ -201,20 +201,28 @@ uint32_t Op2Register(Arm a, uint32_t Operand2) { //given p->Operand2 it returns 
 
 
 void executeP(Arm a, Process p) {
-    uint32_t op2Value;
-    uint32_t carry;
+    uint32_t op2Value = 0;
+    uint32_t carry = 0;
     if (p-> I == 1) {
         //Operand 2 is immediate constant
         uint32_t value = 0x000000FF & (p -> Operand2);
         uint32_t rotate = (0x00000F00 & (p -> Operand2)) >> 8;
         int numRotations = rotate * 2;
-        printf("operand2: %#x\nvalue: %i\nrotate: %i\n", p->Operand2, value, rotate);
-       // op2Value = ror(value, numRotations);
-       // printf("%i\n", op2Value);
-      //  carry = 0x00000001 & op2Value;
-        //op2Value = ror (op2Value, 1);
-        op2Value = value;
-        setResult(a, p, op2Value);
+
+
+        if (numRotations > 1){
+            op2Value = ror(value, numRotations-1);
+            carry = 0x00000001 & op2Value;
+            op2Value = ror (op2Value, 1);
+        } else if (numRotations == 1){
+            carry = 0x00000001 & op2Value;
+            op2Value = ror(value,1);
+        } else {
+            carry = 0;
+            op2Value = value;
+            }
+
+    setResult(a, p, op2Value);
 
 
     } else {
@@ -234,6 +242,8 @@ void executeP(Arm a, Process p) {
             if (p->S == 1) {
                 setCPSR(a, carry, result);
             }
+
+            break;
         case 1:
             result = op1Value ^ op2Value;
             setResult(a, p, result);
@@ -241,6 +251,7 @@ void executeP(Arm a, Process p) {
             if (p->S == 1) {
                 setCPSR(a, carry, result);
             }
+            break;
 
         case 2:
             result = sub (op1Value, op2Value);
@@ -255,6 +266,8 @@ void executeP(Arm a, Process p) {
                 }
                 setCPSR(a, carry, result);
             }
+
+            break;
         case 3:
             result = sub (op2Value, op1Value);
             setResult(a, p, result);
@@ -268,6 +281,7 @@ void executeP(Arm a, Process p) {
                 }
                 setCPSR(a, carry, result);
             }
+            break;
         case 4:
             result = add(op1Value, op2Value);
             setResult(a, p, result);
@@ -275,17 +289,20 @@ void executeP(Arm a, Process p) {
                 carry = addCarry(op1Value, op2Value);
                 setCPSR(a, carry, result);
             }
+            break;
         case 8:  result = op1Value & op2Value;
 
             if (p->S == 1) {
                 setCPSR(a, carry, result);
             }
+            break;
 
         case 9:  result = op1Value ^ op2Value;
 
             if (p->S == 1) {
                 setCPSR(a, carry, result);
             }
+            break;
 
         case 10: result = sub (op1Value, op2Value);
             setResult(a, p, result);
@@ -299,6 +316,7 @@ void executeP(Arm a, Process p) {
                 }
                 setCPSR(a, carry, result);
             }
+            break;
 
         case 12:
             result = op1Value | op2Value;
@@ -306,12 +324,14 @@ void executeP(Arm a, Process p) {
             if (p->S == 1) {
                 setCPSR(a, carry, result);
             }
+            break;
         case 13:
             result = op2Value;
             setResult(a, p, result);
             if (p->S == 1) {
                 setCPSR(a, carry, result);
             }
+            break;
     }
 }
 
@@ -494,10 +514,10 @@ int decode(Arm a, Instruction components, uint32_t instruction) {
 
 void execute (Arm a, Instruction components, int type) {
     switch(type) {
-            case PROCESSING: executeP(a, components -> p);
-            case MULTIPLY:   executeM(a, components -> m);
-            case TRANSFER:   executeT(a, components -> t);
-            case BRANCH:     executeB(a, components -> b);
+            case PROCESSING: executeP(a, components -> p); break;
+            case MULTIPLY:   executeM(a, components -> m); break;
+            case TRANSFER:   executeT(a, components -> t); break;
+            case BRANCH:     executeB(a, components -> b); break;
     }
 }
 
@@ -575,7 +595,7 @@ void printState(Arm a) {
         printf ("$%i: %i\n", i, a->registers[i]);
     }
 
-    printf("PC: %i\n", a->registers[15]); //(a->registers[15] - 1) * 4
+    printf("PC: %i\n", a->registers[15] * 4);
     printf("CPSR: %i\n", a->registers[16]);
 }
 /*Son trial
@@ -638,28 +658,7 @@ int main (int argc, char** argv) {
     FILE* fp = NULL;
     fp = fopen(argv[1], "rb");
 
-
     fread(a -> memory, sizeof(uint32_t), MAX_ITEMS, fp);
-
-
-    printf("contents of memory\n");
-    for (int i = 0; i < 10; i++) {
-        if (a->memory[i] != 0) {
-    	    printf("memory[%i]: %#x\n", i, a->memory[i]);
-        }
-    }
-
- //   for (int i = 0; i < MAX_ITEMS; i++) {
- //       a->memory[i] = __bswap_32(a->memory[i]);
- //   }
-
-
- printf("contents of memory\n");
-    for (int i = 0; i < 10; i++) {
-        if (a->memory[i] != 0) {
-    	    printf("memory[%i]: %#x\n", i, a->memory[i]);
-        }
-    }
 
     //initialise registers to 0
 
@@ -675,5 +674,13 @@ int main (int argc, char** argv) {
     //print final state
 
     printState(a);
+    printf("Non-zero memory: \n");
+    for (int i = 0; i < MAX_ITEMS; i++) {
+        if (a->memory[i] != 0) {
+            printf("%#x:  %#x\n", i*4, __bswap_32(a->memory[i]));
+        } else {
+            break;
+        }
+    }
 
 }

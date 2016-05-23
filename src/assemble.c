@@ -68,6 +68,7 @@ int identify(char *instruction) {
 
 
 
+
 int main(int argc, char **argv) {
   //open binary file to write
 
@@ -86,3 +87,4 @@ int main(int argc, char **argv) {
   fw = fopen(argv[1], "wb");
   fwrite(memory, 4, sizeof (memory), fp);// binary writer
 }
+
