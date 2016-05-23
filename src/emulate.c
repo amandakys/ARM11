@@ -8,6 +8,7 @@
 #define MULTIPLY 2
 #define TRANSFER 3
 #define BRANCH 4
+#define INVALID 5
 #define CPSRth 16
 #define Nth 31
 #define Zth 30
@@ -67,7 +68,7 @@ typedef struct _branch {
 } branch;
 
 bool checkCond(Arm a, uint32_t cond);
-int decode(Instruction components, uint32_t instruction);
+int decode(Arm a, Instruction components, uint32_t instruction);
 uint32_t fetch(Arm a);
 
 
@@ -407,8 +408,8 @@ uint32_t fetch(Arm a) { //returns instruction
     uint32_t PC = a -> registers[15];
     //convert PC from binary to integer rep
     //get value at memory
-    PC++;
-    return a->memory[(int) (PC-1)];
+    a -> registers[15] ++; 
+    return a->memory[(int) (PC)];
 }
 
 void decodeT(Transfer t, uint32_t instruction) {
@@ -451,10 +452,12 @@ void decodeB(Branch b, uint32_t instruction) {
     }
 }
 
-int decode(Instruction components, uint32_t instruction) {
+int decode(Arm a, Instruction components, uint32_t instruction) {
     //take 2
     uint32_t mask = 0x0C000000;
-    if (((instruction & mask) >> 26) == 1) {
+    if (checkCond (a, components -> Cond)) {
+        return INVALID;
+    } else if (((instruction & mask) >> 26) == 1) {
         //single data transfer
         components -> t = malloc (sizeof (struct _transfer));
         decodeT(components -> t, instruction);
@@ -480,11 +483,64 @@ int decode(Instruction components, uint32_t instruction) {
     }
 }
 
-void FEcycle(Arm a, uint32_t instruction) {
+void execute (Arm a, Instruction components, int type) {
+    switch(type) {
+            case PROCESSING: executeP(a, components -> p);
+            case MULTIPLY:   executeM(a, components -> m);
+            case TRANSFER:   executeT(a, components -> t);
+            case BRANCH:     executeB(a, components -> b);
+    }
+}
+
+
+void FEcycle (Arm a) {
     Instruction components = malloc (sizeof (struct _instruction));
+
+    uint32_t instruction = fetch(a); //PC = 0
+    int type = decode (a, components, instruction);
+    instruction = fetch(a); //PC = 1
+    execute(a, components, type);
+    type = decode (a, components, instruction);
+    instruction = fetch(a); //PC = 2
+
+    while (instruction != 0) {
+        execute(a, components, type);
+        type = decode (a, components, instruction);
+        instruction = fetch(a);
+    }
+
+    execute(a, components, type);
+}
+
+/*void FEcycle(Arm a) {
+    //take current instruction 
+
+    do: 
+
+    uint32_t instruction = fetch(a);
+    //make instruction struct
+    Instruction components = malloc (sizeof (struct _instruction));
+    //initialise cond 
     components -> Cond = (0xF0000000 & instruction) >> 28;
-    if (checkCond (a, components -> Cond)) {
-        int type = decode(components, fetch (a)); //initialises relevant values
+
+    int type = decode(a, components, instruction);
+
+    execute(a, components, type);
+
+    while (instruction != 0) {
+
+    }
+
+    
+
+    //make instruction struct
+    Instruction components = malloc (sizeof (struct _instruction));
+    //initialise cond 
+    components -> Cond = (0xF0000000 & instruction) >> 28;
+
+    if (checkCond (a, components -> Cond)) { //check instruction condition is satisfied 
+        int type = decode(components, fetch (a)); //decode initialises relevant values in components 
+        //type = the type of instruction 
 
         switch(type) {
             case 1: executeP(a, components -> p);
@@ -496,6 +552,15 @@ void FEcycle(Arm a, uint32_t instruction) {
         //next instruction
     }
 
+}*/
+
+void printState(Arm a) {
+    for (int i = 0; i < 13; i++) {
+        printf ("$%i: %i", i, a->registers[i]);
+    }
+
+    printf("PC: %i", (a->registers[15] - 1) * 4);
+    printf("CPSR: %i", a->registers[16]);
 }
 //Son trial
 void FEcycle(Arm a) {
@@ -553,9 +618,17 @@ int main (int argc, char** argv) {
 
     //initialise registers to 0
 
-
     for (int i = 0; i < 17; i++) {
         a -> registers[i] = 0;
     }
+
+    //print initial state
+    printState(a);
+
+    FEcycle(a);
+
+    //print final state 
+
+    printState(a);
 
 }
