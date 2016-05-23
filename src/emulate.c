@@ -76,18 +76,18 @@ uint32_t add (uint32_t x, uint32_t y) {
 }
 
 uint32_t addCarry(uint32_t x, uint32_t y) {
-    return x & y; 
+    return x & y;
 }
 
 uint32_t sub(uint32_t x, uint32_t y) {
-    return x - y; 
+    return x - y;
 }
 
 uint32_t subBorrow(uint32_t x, uint32_t y) {
     if (x >= y) {
         return 0; //no borrow
     } else {
-        return 1; //borrow 
+        return 1; //borrow
     }
 }
 
@@ -120,14 +120,14 @@ void setResult(Arm a, Process p, uint32_t result) {
 
 uint32_t calculateShiftAmount(Arm a, uint32_t Operand2) {
     uint32_t shift = (0x00000FF0 & (Operand2)) >> 4;
-    uint32_t bit4 = 0x00000001 & shift; 
+    uint32_t bit4 = 0x00000001 & shift;
     uint32_t shiftAmount;
     if (bit4 == 0) {
             //shift by a constant amount
-            shiftAmount = 0x000000F8 & shift; 
+            shiftAmount = 0x000000F8 & shift;
     } else {
         //shift by a register
-        uint32_t Rs = (0x000000F0 & shift) >> 4; 
+        uint32_t Rs = (0x000000F0 & shift) >> 4;
         shiftAmount = 0x0000000F & (a->registers[Rs]);
     }
 
@@ -154,12 +154,12 @@ uint32_t asr (uint32_t value, int shift) {
 }
 
 uint32_t calculateCarry(Arm a, uint32_t Operand2) {
-    uint32_t Rm = 0x0000000F & (Operand2); 
+    uint32_t Rm = 0x0000000F & (Operand2);
     uint32_t value = a -> registers[Rm];
     uint32_t shift = (0x00000FF0 & (Operand2)) >> 4;
-    uint32_t shiftType = (0x00000006 & shift) >> 1; 
+    uint32_t shiftType = (0x00000006 & shift) >> 1;
     uint32_t shiftAmount = calculateShiftAmount(a, Operand2);
-    uint32_t carry; 
+    uint32_t carry;
 
     switch (shiftType) {
             case 0: carry = (0x80000000 & (value << (shiftAmount - 1))) >> 31;
@@ -172,16 +172,16 @@ uint32_t calculateCarry(Arm a, uint32_t Operand2) {
 
     }
 
-    return carry; 
+    return carry;
 }
 
 uint32_t Op2Register (Arm a, uint32_t Operand2) { //given p->Operand2 it returns the value of op2
-    uint32_t Rm = 0x0000000F & (Operand2); 
+    uint32_t Rm = 0x0000000F & (Operand2);
     uint32_t value = a -> registers[Rm];
     uint32_t shift = (0x00000FF0 & (Operand2)) >> 4;
-    uint32_t shiftType = (0x00000006 & shift) >> 1; 
+    uint32_t shiftType = (0x00000006 & shift) >> 1;
     uint32_t shiftAmount = calculateShiftAmount(a, Operand2);
-    uint32_t op2Value; 
+    uint32_t op2Value;
 
     switch (shiftType) {
         case 0: op2Value = value << shiftAmount;
@@ -209,30 +209,30 @@ void executeP(Arm a, Process p) {
 
 
     } else {
-        //Operand 2 is a shift register 
+        //Operand 2 is a shift register
         op2Value = Op2Register(a, p->Operand2);
         carry = calculateCarry(a, p->Operand2);
     }
 
     uint32_t op1Value = a->registers[p->Rn];
-    uint32_t result; 
+    uint32_t result;
 
     switch (p -> Opcode) {
-        case 0: 
-            result = op1Value & op2Value; 
+        case 0:
+            result = op1Value & op2Value;
             setResult(a, p, result);
 
             if (p->S == 1) {
                 setCPSR(a, carry, result);
             }
-        case 1:  
-            result = op1Value ^ op2Value; 
+        case 1:
+            result = op1Value ^ op2Value;
             setResult(a, p, result);
 
             if (p->S == 1) {
                 setCPSR(a, carry, result);
             }
-        
+
         case 2:
             result = sub (op1Value, op2Value);
             setResult(a, p, result);
@@ -240,7 +240,7 @@ void executeP(Arm a, Process p) {
             if (p->S == 1) {
                 carry = subBorrow (op1Value, op2Value);
                 if (carry == 1) {
-                carry = 0; 
+                carry = 0;
                 } else {
                     carry = 1;
                 }
@@ -253,7 +253,7 @@ void executeP(Arm a, Process p) {
             if (p->S == 1) {
                 carry = subBorrow (op2Value, op1Value);
                 if (carry == 1) {
-                    carry = 0; 
+                    carry = 0;
                 } else {
                     carry = 1;
                 }
@@ -266,13 +266,13 @@ void executeP(Arm a, Process p) {
                 carry = addCarry(op1Value, op2Value);
                 setCPSR(a, carry, result);
             }
-        case 8:  result = op1Value & op2Value; 
+        case 8:  result = op1Value & op2Value;
 
             if (p->S == 1) {
                 setCPSR(a, carry, result);
             }
 
-        case 9:  result = op1Value ^ op2Value; 
+        case 9:  result = op1Value ^ op2Value;
 
             if (p->S == 1) {
                 setCPSR(a, carry, result);
@@ -284,7 +284,7 @@ void executeP(Arm a, Process p) {
             if (p->S == 1) {
                 carry = subBorrow (op1Value, op2Value);
                 if (carry == 1) {
-                carry = 0; 
+                carry = 0;
                 } else {
                     carry = 1;
                 }
@@ -382,7 +382,7 @@ void executeB(Arm a, Branch b) {
 }
 
 bool checkCond(Arm a, uint32_t cond) {
-    uint32_t mask = 0xF0000000; 
+    uint32_t mask = 0xF0000000;
     uint32_t CPSR = (a -> registers[16] & mask) >> 28;
 
     uint32_t n = (0x00000008 & CPSR) >> 3;
@@ -398,7 +398,7 @@ bool checkCond(Arm a, uint32_t cond) {
         case 12: return z == 0 && n == v;
         case 13: return z == 1 || n != v;
         case 14: return true;
-        default: return false; 
+        default: return false;
     }
 }
 
@@ -495,6 +495,43 @@ void FEcycle(Arm a, uint32_t instruction) {
     } else {
         //next instruction
     }
+
+}
+//Son trial
+void FEcycle(Arm a) {
+  uint32_t stageFetch;//instruction currently fetch
+  uint32_t fetched = 0;//the one that fetched in the last loop iteration
+  unin32_t stageDecode = 0;//instruction currently decode
+  uint32_t decoded = 0;//the one decoded last loop iteration
+  uint32_t PC = a->registers[15];
+
+  while (a->memory[PC] != \0){//when memory is not empty
+    // The order of reading is fetch first then decode then execute
+    // so that it will satisfy the spec : the one being fetched
+    // is 2 instructions further than the one being executed.
+    // Since we have to fetch new one before decode old one, decode new one
+    // before execute old one I use fetched and decoded variable to
+    // save the values of old stageFetch and old stageDecode as they will
+    // be overided by the new values
+    stageFetch = fetch(a);//fetch the next one
+    Instruction components = malloc (sizeof (struct _instruction));//initialize stuff
+    if (fetched != 0) {//if there is a thing fetched before then decode it
+      components -> Cond = (0xF0000000 & fetched) >> 28;
+      uint32_t stageDecode = decode(components, Fetched)
+    }
+    if (decoded != 0) {//if there is a thing decoded before then execute it
+      if(checkCond (a, components -> Cond)) {//condition is checked right before the execution
+        switch(decoded) {
+            case 1: executeP(a, components -> p);
+            case 2: executeM(a, components -> m);
+            case 3: executeT(a, components -> t);
+            case 4: executeB(a, components -> b);
+        }
+      }
+    }
+    fetched = stageFetch;//save the instruction fetched in this loop iteration
+    decoded = stageDecode;//save the instruction decoded in this loop iteration
+  }
 
 }
 
