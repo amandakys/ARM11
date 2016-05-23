@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <math.h>
 #include <stdbool.h>
+#include <assert.h>
 
 #define PROCESSING 1
 #define MULTIPLY 2
@@ -160,7 +161,7 @@ uint32_t calculateCarry(Arm a, uint32_t Operand2) {
     uint32_t shift = (0x00000FF0 & (Operand2)) >> 4;
     uint32_t shiftType = (0x00000006 & shift) >> 1;
     uint32_t shiftAmount = calculateShiftAmount(a, Operand2);
-    uint32_t carry;
+    uint32_t carry = 0;
 
     switch (shiftType) {
             case 0: carry = (0x80000000 & (value << (shiftAmount - 1))) >> 31;
@@ -182,7 +183,7 @@ uint32_t Op2Register (Arm a, uint32_t Operand2) { //given p->Operand2 it returns
     uint32_t shift = (0x00000FF0 & (Operand2)) >> 4;
     uint32_t shiftType = (0x00000006 & shift) >> 1;
     uint32_t shiftAmount = calculateShiftAmount(a, Operand2);
-    uint32_t op2Value;
+    uint32_t op2Value = NULL; 
 
     switch (shiftType) {
         case 0: op2Value = value << shiftAmount;
@@ -614,7 +615,8 @@ int main (int argc, char** argv) {
 
     FILE* fp;
     fp = fopen(argv[0], "rb");
-    fread(a -> memory, 4, 2048, fp); //adjust parameters
+    int i = fread(a -> memory, 4, 2048, fp); //adjust parameters
+    assert (i == 2048);
 
     //initialise registers to 0
 
