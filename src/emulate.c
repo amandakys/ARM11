@@ -562,7 +562,7 @@ void printState(Arm a) {
     printf("PC: %i", (a->registers[15] - 1) * 4);
     printf("CPSR: %i", a->registers[16]);
 }
-//Son trial
+/*Son trial
 void FEcycle(Arm a) {
   uint32_t stageFetch;//instruction currently fetch
   uint32_t fetched = 0;//the one that fetched in the last loop iteration
@@ -598,7 +598,7 @@ void FEcycle(Arm a) {
     decoded = stageDecode;//save the instruction decoded in this loop iteration
   }
 
-}
+}*/
 
 int main (int argc, char** argv) {
     //read the file name from command line scanf
@@ -608,13 +608,13 @@ int main (int argc, char** argv) {
 
     Arm a = malloc (sizeof (struct _arm));
 
-    for (int i = 0; i < 65536; i++) {
+    for (int i = 0; i < 2048; i++) {
         a -> memory[i] = 0;
     }
 
     FILE* fp;
     fp = fopen(argv[0], "rb");
-    fread(a -> memory, 4, sizeof (a -> memory), fp); //adjust parameters
+    fread(a -> memory, 4, 2048, fp); //adjust parameters
 
     //initialise registers to 0
 
