@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <math.h>
 #include <stdbool.h>
-#include <assert.h>  
+#include <assert.h>
 #include <byteswap.h>
 
 #define PROCESSING 1
@@ -16,6 +16,7 @@
 #define Zth 30
 #define Cth 29
 #define Vth 28
+#define MAX_ITEMS 16384
 
 typedef struct _arm *Arm;
 typedef struct _process *Process;
@@ -26,7 +27,7 @@ typedef struct _instruction *Instruction;
 
 typedef struct _arm {
     uint32_t registers[17];
-    uint32_t memory[2048];
+    uint32_t memory[MAX_ITEMS];
 } arm;
 
 typedef struct _instruction {
@@ -118,9 +119,10 @@ void setCPSR(Arm a, uint32_t carry, uint32_t result) {
 }
 
 void setResult(Arm a, Process p, uint32_t result) {
-    a->registers[p->Rd] = result; 
-    //printf("%i\n", p->Rd);    
-}                     
+    a->registers[p->Rd] = result;
+    printf("%#x\n", a-> registers[p->Rd]);
+
+}
 
 uint32_t calculateShiftAmount(Arm a, uint32_t Operand2) {
     uint32_t shift = (0x00000FF0 & (Operand2)) >> 4;
@@ -177,7 +179,7 @@ uint32_t calculateCarry(Arm a, uint32_t Operand2) {
     }
 
     return carry;
-}     
+}
 
 uint32_t Op2Register(Arm a, uint32_t Operand2) { //given p->Operand2 it returns the value of op2
     uint32_t Rm = 0x0000000F & (Operand2);
@@ -185,7 +187,7 @@ uint32_t Op2Register(Arm a, uint32_t Operand2) { //given p->Operand2 it returns 
     uint32_t shift = (0x00000FF0 & (Operand2)) >> 4;
     uint32_t shiftType = (0x00000006 & shift) >> 1;
     uint32_t shiftAmount = calculateShiftAmount(a, Operand2);
-    uint32_t op2Value = NULL; 
+    uint32_t op2Value = NULL;
 
     switch (shiftType) {
         case 0: op2Value = value << shiftAmount;
@@ -201,22 +203,23 @@ uint32_t Op2Register(Arm a, uint32_t Operand2) { //given p->Operand2 it returns 
 void executeP(Arm a, Process p) {
     uint32_t op2Value;
     uint32_t carry;
-    if (p-> I == 1) {          
+    if (p-> I == 1) {
         //Operand 2 is immediate constant
         uint32_t value = 0x000000FF & (p -> Operand2);
         uint32_t rotate = (0x00000F00 & (p -> Operand2)) >> 8;
-        int numRotations = rotate * 2; 
-        printf("operand2: %#x\nvalue: %i\nrotate: %i\n", p->Operand2, value, rotate);          
-        op2Value = ror(value, numRotations);   
-        printf("%i\n", op2Value);
-        carry = 0x00000001 & op2Value;                      
-        //op2Value = ror (op2Value, 1); 
+        int numRotations = rotate * 2;
+        printf("operand2: %#x\nvalue: %i\nrotate: %i\n", p->Operand2, value, rotate);
+       // op2Value = ror(value, numRotations);
+       // printf("%i\n", op2Value);
+      //  carry = 0x00000001 & op2Value;
+        //op2Value = ror (op2Value, 1);
+        op2Value = value;
         setResult(a, p, op2Value);
-                          
+
 
     } else {
         //Operand 2 is a shift register
-        op2Value = Op2Register(a, p->Operand2);   
+        op2Value = Op2Register(a, p->Operand2);
         carry = calculateCarry(a, p->Operand2);
     }
 
@@ -264,7 +267,7 @@ void executeP(Arm a, Process p) {
                     carry = 1;
                 }
                 setCPSR(a, carry, result);
-            }                                 
+            }
         case 4:
             result = add(op1Value, op2Value);
             setResult(a, p, result);
@@ -413,7 +416,7 @@ uint32_t fetch(Arm a) { //returns instruction
     uint32_t PC = a -> registers[15];
     //convert PC from binary to integer rep
     //get value at memory
-    a -> registers[15] ++; 
+    a -> registers[15] ++;
     return a->memory[(int) (PC)];
 }
 
@@ -428,12 +431,12 @@ void decodeT(Transfer t, uint32_t instruction) {
 }
 
 void decodeP(Process p, uint32_t instruction) {
-                                                               
+
     p -> I        = (0x02000000 & instruction) >> 25;
     p -> Opcode   = (0x01E00000 & instruction) >> 21;
     p -> S        = (0x00100000 & instruction) >> 20;
     p -> Rn       = (0x000F0000 & instruction) >> 16;
-    p -> Rd       = (0x0000F000 & instruction) >> 12;   
+    p -> Rd       = (0x0000F000 & instruction) >> 12;
     p -> Operand2 = (0x00000FFF & instruction);
 }
 
@@ -461,7 +464,7 @@ int decode(Arm a, Instruction components, uint32_t instruction) {
     //take 2
     uint32_t mask = 0x0C000000;
     components -> Cond = (0xF0000000 & instruction) >> 28;
-    if (checkCond (a, components -> Cond)) {
+    if (!checkCond (a, components -> Cond)) {
         return INVALID;
     } else if (((instruction & mask) >> 26) == 1) {
         //single data transfer
@@ -503,11 +506,11 @@ void FEcycle (Arm a) {
     Instruction components = malloc (sizeof (struct _instruction));
     components -> p = malloc (sizeof (struct _process));
     components -> m = malloc (sizeof (struct _multiply));
-    components -> t = malloc (sizeof (struct _transfer)); 
-    components -> b = malloc (sizeof (struct _branch)); 
-    
+    components -> t = malloc (sizeof (struct _transfer));
+    components -> b = malloc (sizeof (struct _branch));
 
-    uint32_t instruction = fetch(a); //PC = 0  -> 1    
+
+    uint32_t instruction = fetch(a); //PC = 0  -> 1
     int type = decode (a, components, instruction);
     instruction = fetch(a); //PC = 1    -> 2
     execute(a, components, type);
@@ -517,23 +520,23 @@ void FEcycle (Arm a) {
     while (instruction != 0) {
         execute(a, components, type);
         type = decode (a, components, instruction);
-        instruction = fetch(a);  
+        instruction = fetch(a);
     }
 
-    execute(a, components, type); 
-    type = decode (a, components, instruction);     
-    instruction = fetch(a);                     
-}                                  
+    execute(a, components, type);
+    type = decode (a, components, instruction);
+    instruction = fetch(a);
+}
 
 /*void FEcycle(Arm a) {
-    //take current instruction 
+    //take current instruction
 
-    do: 
+    do:
 
     uint32_t instruction = fetch(a);
     //make instruction struct
     Instruction components = malloc (sizeof (struct _instruction));
-    //initialise cond 
+    //initialise cond
     components -> Cond = (0xF0000000 & instruction) >> 28;
 
     int type = decode(a, components, instruction);
@@ -544,16 +547,16 @@ void FEcycle (Arm a) {
 
     }
 
-    
+
 
     //make instruction struct
     Instruction components = malloc (sizeof (struct _instruction));
-    //initialise cond 
+    //initialise cond
     components -> Cond = (0xF0000000 & instruction) >> 28;
 
-    if (checkCond (a, components -> Cond)) { //check instruction condition is satisfied 
-        int type = decode(components, fetch (a)); //decode initialises relevant values in components 
-        //type = the type of instruction 
+    if (checkCond (a, components -> Cond)) { //check instruction condition is satisfied
+        int type = decode(components, fetch (a)); //decode initialises relevant values in components
+        //type = the type of instruction
 
         switch(type) {
             case 1: executeP(a, components -> p);
@@ -613,61 +616,63 @@ void FEcycle(Arm a) {
 
 }*/
 
-/*uint32_t endianSwap(uint32_t instruction) {                 
-    uint32_t swapped = ((instruction >> 24) & 0x000000ff) | 
-                       ((instruction << 8) &0x00ff0000) | 
-                       ((instruction >> 8) & 0x0000ff00) | 
+/*uint32_t endianSwap(uint32_t instruction) {
+    uint32_t swapped = ((instruction >> 24) & 0x000000ff) |
+                       ((instruction << 8) &0x00ff0000) |
+                       ((instruction >> 8) & 0x0000ff00) |
                        ((instruction << 24) & 0xff000000);
-    return swapped; 
+    return swapped;
 }   cuz we're boss */
 
 int main (int argc, char** argv) {
     //read the file name from command line scanf
     //fopen to create a file pointer
     //fread to create
-    //create memory array with 65536 bits
+    //create memory array with 65536 bitsx
+    Arm a = malloc (sizeof (struct _arm ));
 
-    Arm a = malloc (sizeof (struct _arm));
-
-    for (int i = 0; i < 2048; i++) {
+    for (int i = 0; i < MAX_ITEMS; i++) {
         a -> memory[i] = 0;
     }
-                                          
-    FILE* fp;
-    fp = fopen(argv[0], "rb");
-    int i = fread(a -> memory, 4, 2048, fp); 
-    assert (i == 2048);       
-    
+
+    FILE* fp = NULL;
+    fp = fopen(argv[1], "rb");
+
+
+    fread(a -> memory, sizeof(uint32_t), MAX_ITEMS, fp);
+
+
     printf("contents of memory\n");
     for (int i = 0; i < 10; i++) {
         if (a->memory[i] != 0) {
     	    printf("memory[%i]: %#x\n", i, a->memory[i]);
         }
-    }                                                         
-                            
-    for (int i = 0; i < 2048; i++) {
-        a->memory[i] = __bswap_32(a->memory[i]);
-    }    
-    
-    printf("contents of memory\n");
+    }
+
+ //   for (int i = 0; i < MAX_ITEMS; i++) {
+ //       a->memory[i] = __bswap_32(a->memory[i]);
+ //   }
+
+
+ printf("contents of memory\n");
     for (int i = 0; i < 10; i++) {
         if (a->memory[i] != 0) {
-            printf("memory[%i]: %#x\n", i, a->memory[i]);
+    	    printf("memory[%i]: %#x\n", i, a->memory[i]);
         }
-    }  
-                                    
+    }
+
     //initialise registers to 0
 
     for (int i = 0; i < 17; i++) {
         a -> registers[i] = 0;
-    }                   
-                       
+    }
+
     //print initial state
     printState(a);
 
     FEcycle(a);
 
-    //print final state 
+    //print final state
 
     printState(a);
 
