@@ -75,7 +75,7 @@ int identify(char *instruction) {
   } else if ((strcmp(instruction,"lsl") == 0)
           || (strcmp(instruction,"andeq") == 0)) {
     return SPECIAL;
-  } else if ((strcmp(instruction,"beg") == 0)
+  } else if ((strcmp(instruction,"beq") == 0)
       || (strcmp(instruction,"bne") == 0) || (strcmp(instruction,"bge") == 0)
       || (strcmp(instruction,"blt") == 0) || (strcmp(instruction,"bgt") == 0)
       || (strcmp(instruction,"ble") == 0) || (strcmp(instruction,"b") == 0) {
@@ -101,6 +101,33 @@ void translate(Ass a, FILE fr, LabelNode head) {
       case 6: break;
     }
   }
+}
+
+void translateB (char *line, Ass a, int position) {
+  //Get the cond
+  char *cond = strtok(line," ");
+  uint32_t condb; // Cond field
+  if(strcmp(cond,"beq") == 0) {
+    condb = 0;
+  } else if(strcmp(cond,"bne") == 0) {
+    condb = 1 << 28;
+  } else if(strcmp(cond,"bge") == 0) {
+    condb = 10 << 28;
+  } else if(strcmp(cond,"blt") == 0) {
+    condb = 11 << 28;
+  } else if(strcmp(cond,"bgt") == 0) {
+    condb = 12 << 28;
+  } else if(strcmp(cond,"ble") == 0) {
+    condb = 13 << 28;
+  } else {
+    condb = 14 << 28;
+  }
+
+  char *label = strtok(NULL," ");
+  LabelNode current = a -> head;
+
+  int offset = position
+
 }
 
 int main(int argc, char **argv) {
