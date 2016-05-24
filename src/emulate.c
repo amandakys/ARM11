@@ -4,7 +4,7 @@
 #include <math.h>
 #include <stdbool.h>
 #include <assert.h>
-//#include <byteswap.h>
+#include <byteswap.h>
 
 #define PROCESSING 1
 #define MULTIPLY 2
@@ -69,6 +69,8 @@ typedef struct _transfer {
 typedef struct _branch {
     uint32_t Offset;
 } branch;
+
+typedef enum {NEXT, HALT, FLUSH} executeRes;
 
 bool checkCond(Arm a, uint32_t cond);
 int decode(Arm a, Instruction components, uint32_t instruction);
@@ -221,7 +223,7 @@ void executeP(Arm a, Process p) {
             op2Value = value;
             }
 
-    setResult(a, p, op2Value);
+  //  setResult(a, p, op2Value);
 
 
     } else {
@@ -289,7 +291,7 @@ void executeP(Arm a, Process p) {
                     setCPSR(a, carry, result);
                 }
                 break;
-        case 8:  
+        case 8:
                 result = op1Value & op2Value;
 
                 if (p->S == 1) {
@@ -297,7 +299,7 @@ void executeP(Arm a, Process p) {
                 }
                 break;
 
-        case 9:  
+        case 9:
                 result = op1Value ^ op2Value;
 
                 if (p->S == 1) {
@@ -305,7 +307,7 @@ void executeP(Arm a, Process p) {
                 }
                 break;
 
-        case 10: 
+        case 10:
                 result = sub (op1Value, op2Value);
                 //setResult(a, p, result);
 
@@ -404,10 +406,10 @@ void executeB(Arm a, Branch b) {
 
     uint32_t MSB = (b -> Offset & 0x80000000) >> 31;
     if (MSB == 0) {
-        a -> registers[15] += b -> Offset;
+        a -> registers[15] += (b -> Offset)/4;
     } else {
         uint32_t unSigned = (~(b -> Offset) + 1);
-        a -> registers[15] -= unSigned;
+        a -> registers[15] -= unSigned/4;
     }
 
 }
@@ -422,14 +424,14 @@ bool checkCond(Arm a, uint32_t cond) {
     uint32_t v = 0x00000001 & CPSR;
 
     switch(cond) {
-        case 0: return z == 1;
-        case 1: return z == 0;
-        case 10: return n == v;
-        case 11: return n != v;
-        case 12: return z == 0 && n == v;
-        case 13: return z == 1 || n != v;
-        case 14: return true;
-        default: return false;
+        case 0: return z == 1; break;
+        case 1: return z == 0; break;
+        case 10: return n == v; break;
+        case 11: return n != v; break;
+        case 12: return z == 0 && n == v; break;
+        case 13: return z == 1 || n != v; break;
+        case 14: return true;   break;
+        default: return false;  break;
     }
 }
 
@@ -478,7 +480,7 @@ void decodeB(Branch b, uint32_t instruction) {
     if (MSB == 1) {
         b -> Offset = (0xFF000000 | instruction) << 2;
     } else {
-        b -> Offset = (0x00FFFFFF & instruction) << 2;
+        b -> Offset = (0x00FFFFFF & instruction) << 2 ;
     }
 }
 
@@ -486,7 +488,9 @@ int decode(Arm a, Instruction components, uint32_t instruction) {
     //take 2
     uint32_t mask = 0x0C000000;
     components -> Cond = (0xF0000000 & instruction) >> 28;
-    if (!checkCond (a, components -> Cond)) {
+    if (instruction == 0) {//instruction is all zero = halt
+        return 0;
+    } else if (!checkCond (a, components -> Cond)) {
         return INVALID;
     } else if (((instruction & mask) >> 26) == 1) {
         //single data transfer
@@ -514,13 +518,16 @@ int decode(Arm a, Instruction components, uint32_t instruction) {
     }
 }
 
-void execute (Arm a, Instruction components, int type) {
+executeRes execute (Arm a, Instruction components, int type) {
     switch(type) {
-            case PROCESSING: executeP(a, components -> p); break;
-            case MULTIPLY:   executeM(a, components -> m); break;
-            case TRANSFER:   executeT(a, components -> t); break;
-            case BRANCH:     executeB(a, components -> b); break;
+            case 0: return HALT;
+            case PROCESSING: executeP(a, components -> p); return NEXT;
+            case MULTIPLY:   executeM(a, components -> m); return NEXT;
+            case TRANSFER:   executeT(a, components -> t); return NEXT;
+            case BRANCH:     executeB(a, components -> b); return FLUSH;
+            case INVALID: return NEXT;
     }
+    return NEXT;
 }
 
 void FEcycle (Arm a) {
@@ -528,30 +535,26 @@ void FEcycle (Arm a) {
     components -> p = malloc (sizeof (struct _process));
     components -> m = malloc (sizeof (struct _multiply));
     components -> t = malloc (sizeof (struct _transfer));
-    components -> b = malloc (sizeof (struct _branch)); 
+    components -> b = malloc (sizeof (struct _branch));
 
-    
-    uint32_t instruction = fetch(a); //PC = 0  -> 1
+    uint32_t instruction = fetch(a);
     int type = decode (a, components, instruction);
-    instruction = fetch(a); //PC = 1    -> 2
-    execute(a, components, type);
-    type = decode (a, components, instruction);
-    if (instruction != 0) {
-        instruction = fetch(a); //PC = 2    -> 3
-    }
-
-    while (instruction != 0) {
-        execute(a, components, type);
-        if (type == 4) {
-            instruction = fetch(a);
-        }
-        type = decode (a, components, instruction);
-        instruction = fetch(a);
-    }
-
-    execute(a, components, type);
+    instruction = fetch(a);
+    executeRes result = execute (a, components, type);
     type = decode (a, components, instruction);
     instruction = fetch(a);
+
+    while (result != HALT) {
+        result = execute(a, components, type);
+        if (result == FLUSH) { //clear pipeline of previously fetched instructions
+            instruction = fetch(a);
+        }
+        if (result != HALT) {
+        type = decode (a, components, instruction);
+        instruction = fetch(a);
+        }
+    }
+
 }
 
 void printState(Arm a) {
