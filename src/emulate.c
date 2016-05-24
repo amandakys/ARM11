@@ -160,6 +160,19 @@ uint32_t asr(uint32_t value, int shift) {
 
 }
 
+
+uint32_t separateByte(int byteNumber, uint32_t instruction){
+
+    switch(byteNumber){
+        case 0 : return (0xFF000000 & instruction) >> 24;
+        case 1 : return (0x00FF0000 & instruction) >> 16;
+        case 2 : return (0x0000FF00 & instruction) >> 8;
+        case 3 : return (0x000000FF & instruction);
+        default: return instruction;
+
+    }
+}
+
 uint32_t calculateCarry(Arm a, uint32_t Operand2) {
     uint32_t Rm = 0x0000000F & (Operand2);
     uint32_t value = a -> registers[Rm];
@@ -381,20 +394,34 @@ void executeT(Arm a, Transfer t) {
     //Check if load from or to memory
     if(t -> L == 1) {
         //Load from memory
-        a -> registers[t -> Rd] = a -> memory[t -> Rn];
+        //it looks so ugly because 1: our way of storing the memory made it
+        // 32-bit word addresable and 2: we also keep the memory in big endian
+        // and should be in little endian
+
+        int i = a -> registers[t->Rn];
+        uint32_t byte0 = separateByte(3-(i%4), a->memory[i/4]) << 24; i++;
+        uint32_t byte1 = separateByte(3-(i%4), a->memory[i/4]) << 16; i++;
+        uint32_t byte2 = separateByte(3-(i%4), a->memory[i/4]) << 8; i++;
+        uint32_t byte3 = separateByte(3-(i%4), a->memory[i/4]);
+
+        uint32_t backwardValue = (byte0 | byte1 | byte2 | byte3);
+        uint32_t rightValue = __bswap_32(backwardValue);
+
+        a -> registers[t -> Rd] = rightValue;
     } else {
         //Load to memory
-        a -> memory[t -> Rn] = a -> registers[t -> Rd];
+        a -> memory[a->registers[t -> Rn]] = a -> registers[t -> Rd];
     }
     //Check for Post-indexing after transfer
     if(t -> P == 0) {
         if(t -> U == 1) {
-            a -> registers[t -> Rn] += t -> Offset;
+            a -> registers[t -> Rn] += (t -> Offset);
         } else {
-            a -> registers[t -> Rn] -= t -> Offset;
+            a -> registers[t -> Rn] -= (t -> Offset);
         }
     } else {
         //Pre-indexing, no changes to Rn (according to specs)
+
     }
 }
 
@@ -413,6 +440,7 @@ void executeB(Arm a, Branch b) {
     }
 
 }
+
 
 bool checkCond(Arm a, uint32_t cond) {
     uint32_t mask = 0xF0000000;
@@ -559,7 +587,7 @@ void FEcycle (Arm a) {
 
 void printState(Arm a) {
     for (int i = 0; i < 13; i++) {
-        printf ("$%i: %i\n", i, a->registers[i]);
+        printf ("$%i: %i (%#x)\n", i, a->registers[i], a->registers[i]);
     }
 
     printf("PC: %i\n", a->registers[15] * 4);
