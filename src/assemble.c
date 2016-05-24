@@ -85,6 +85,63 @@ int identify(char *instruction) {
   }
 }
 
+uint32_t regTrans(char *reg) {
+    if (reg[0] == '\n') { //remove the letter 'r' from r1, r2, ...
+            memmove(reg, reg+1, strlen(reg));
+    }
+    int num = atoi(reg);//get the number in integer
+    return (uint32_t) num;
+}
+
+uint32_t reorder(uint32_t ins) {
+    uint32_t first = ins >> 24;//take the first byte
+    uint32_t second = ((ins >> 16) & ~(1<<8)) << 8;//take the second byte
+    uint32_t third = ((ins >> 8) & ~(1<<8)) << 16;//take the third byte
+    uint32_t fourth = ((ins) & ~(1<<8)) << 24;
+    return (fourth | third | second | first);
+
+}
+
+void translateP(char *ins, Ass a, int pos) {
+
+}
+
+void translateM(char *ins, Ass a, int pos) {
+    uint32_t Cond = 14 << 28; // Condition field is 1110
+    uint32_t S = 0; // S field is 0
+    char *mnemonic = strtok(ins," ");
+    uint32_t A = 0;
+    if (strcmp(mnemonic,"mul") != 0) {
+        A = 1;
+    }
+    char *Rds = strtok(NULL," ");
+    uint32_t Rd = regTrans(Rds) << 16;//Rd: bit 16 to bit 19
+    char *Rns = strtok(NULL, " ");
+    uint32_t Rn = regTrans(Rns) << 12;//Rn: bit 12 to bit 15
+    char *Rss = strtok(NULL," ");
+    uint32_t Rs = regTrans(Rss) << 8;//Rs: bit 8 to bit 11
+    uint32_t other = 9 << 4; // the other field is 1001
+    char *Rms = strtok(NULL, " ");
+    uint32_t Rm = 0;
+    if (Rms != NULL) {
+        Rm = regTrans(Rms);
+    }
+    uint32_t result = Cond | A | S | Rd | Rn | Rs | Rm;
+    a->memory[pos] = reorder(result);
+}
+
+void translateT(char *ins, Ass a, int pos) {
+
+}
+
+void translateB(char *ins, Ass a, int pos) {
+
+}
+
+void translateS(char *ins, Ass a, int pos) {
+
+}
+
 void translate(Ass a, FILE fr, LabelNode head) {
   char *next;
   int position = 0;
