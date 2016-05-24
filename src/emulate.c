@@ -4,7 +4,7 @@
 #include <math.h>
 #include <stdbool.h>
 #include <assert.h>
-#include <byteswap.h>
+//#include <byteswap.h>
 
 #define PROCESSING 1
 #define MULTIPLY 2
@@ -96,7 +96,7 @@ uint32_t subBorrow(uint32_t x, uint32_t y) {
 }
 
 void setC(Arm a, uint32_t carry) {
-    a -> registers[CPSRth] = (a->registers[CPSRth] & ~(1<<30)) | (carry << 30); //set the C flag in CPSR
+    a -> registers[CPSRth] = (a->registers[CPSRth] & ~(1<<Cth)) | (carry << Cth); //set the C flag in CPSR
 }
 
 void setZP(Arm a, uint32_t result) {
@@ -120,7 +120,6 @@ void setCPSR(Arm a, uint32_t carry, uint32_t result) {
 
 void setResult(Arm a, Process p, uint32_t result) {
     a->registers[p->Rd] = result;
-    printf("%#x\n", a-> registers[p->Rd]);
 
 }
 
@@ -187,7 +186,7 @@ uint32_t Op2Register(Arm a, uint32_t Operand2) { //given p->Operand2 it returns 
     uint32_t shift = (0x00000FF0 & (Operand2)) >> 4;
     uint32_t shiftType = (0x00000006 & shift) >> 1;
     uint32_t shiftAmount = calculateShiftAmount(a, Operand2);
-    uint32_t op2Value = NULL;
+    uint32_t op2Value = 0;
 
     switch (shiftType) {
         case 0: op2Value = value << shiftAmount;
@@ -236,102 +235,105 @@ void executeP(Arm a, Process p) {
 
     switch (p -> Opcode) {
         case 0:
-            result = op1Value & op2Value;
-            setResult(a, p, result);
+                result = op1Value & op2Value;
+                setResult(a, p, result);
 
-            if (p->S == 1) {
-                setCPSR(a, carry, result);
-            }
+                if (p->S == 1) {
+                    setCPSR(a, carry, result);
+                }
 
-            break;
+                break;
         case 1:
-            result = op1Value ^ op2Value;
-            setResult(a, p, result);
+                result = op1Value ^ op2Value;
+                setResult(a, p, result);
 
-            if (p->S == 1) {
-                setCPSR(a, carry, result);
-            }
-            break;
+                if (p->S == 1) {
+                    setCPSR(a, carry, result);
+                }
+                break;
 
         case 2:
-            result = sub (op1Value, op2Value);
-            setResult(a, p, result);
+                result = sub (op1Value, op2Value);
+                setResult(a, p, result);
 
-            if (p->S == 1) {
-                carry = subBorrow (op1Value, op2Value);
-                if (carry == 1) {
-                carry = 0;
-                } else {
-                    carry = 1;
+                if (p->S == 1) {
+                    carry = subBorrow (op1Value, op2Value);
+                    if (carry == 1) {
+                        carry = 0;
+                    } else {
+                        carry = 1;
+                    }
+                    setCPSR(a, carry, result);
                 }
-                setCPSR(a, carry, result);
-            }
 
-            break;
+                break;
         case 3:
-            result = sub (op2Value, op1Value);
-            setResult(a, p, result);
+                result = sub (op2Value, op1Value);
+                setResult(a, p, result);
 
-            if (p->S == 1) {
-                carry = subBorrow (op2Value, op1Value);
-                if (carry == 1) {
-                    carry = 0;
-                } else {
-                    carry = 1;
+                if (p->S == 1) {
+                    carry = subBorrow (op2Value, op1Value);
+                    if (carry == 1) {
+                        carry = 0;
+                    } else {
+                        carry = 1;
+                    }
+                    setCPSR(a, carry, result);
                 }
-                setCPSR(a, carry, result);
-            }
-            break;
+                break;
         case 4:
-            result = add(op1Value, op2Value);
-            setResult(a, p, result);
-            if (p ->S == 1) {
-                carry = addCarry(op1Value, op2Value);
-                setCPSR(a, carry, result);
-            }
-            break;
-        case 8:  result = op1Value & op2Value;
-
-            if (p->S == 1) {
-                setCPSR(a, carry, result);
-            }
-            break;
-
-        case 9:  result = op1Value ^ op2Value;
-
-            if (p->S == 1) {
-                setCPSR(a, carry, result);
-            }
-            break;
-
-        case 10: result = sub (op1Value, op2Value);
-            setResult(a, p, result);
-
-            if (p->S == 1) {
-                carry = subBorrow (op1Value, op2Value);
-                if (carry == 1) {
-                carry = 0;
-                } else {
-                    carry = 1;
+                result = add(op1Value, op2Value);
+                setResult(a, p, result);
+                if (p ->S == 1) {
+                    carry = addCarry(op1Value, op2Value);
+                    setCPSR(a, carry, result);
                 }
-                setCPSR(a, carry, result);
-            }
-            break;
+                break;
+        case 8:  
+                result = op1Value & op2Value;
+
+                if (p->S == 1) {
+                    setCPSR(a, carry, result);
+                }
+                break;
+
+        case 9:  
+                result = op1Value ^ op2Value;
+
+                if (p->S == 1) {
+                    setCPSR(a, carry, result);
+                }
+                break;
+
+        case 10: 
+                result = sub (op1Value, op2Value);
+                //setResult(a, p, result);
+
+                if (p->S == 1) {
+                    carry = subBorrow (op1Value, op2Value);
+                    if (carry == 1) {
+                        carry = 0;
+                    } else {
+                        carry = 1;
+                    }
+                    setCPSR(a, carry, result);
+                }
+                break;
 
         case 12:
-            result = op1Value | op2Value;
-            setResult(a, p, result);
-            if (p->S == 1) {
-                setCPSR(a, carry, result);
-            }
-            break;
+                result = op1Value | op2Value;
+                setResult(a, p, result);
+                if (p->S == 1) {
+                    setCPSR(a, carry, result);
+                }
+                break;
         case 13:
-            result = op2Value;
-            setResult(a, p, result);
-            if (p->S == 1) {
-                setCPSR(a, carry, result);
-            }
-            break;
+                result = op2Value;
+                setResult(a, p, result);
+                if (p->S == 1) {
+                    setCPSR(a, carry, result);
+                }
+                break;
     }
 }
 
@@ -521,24 +523,28 @@ void execute (Arm a, Instruction components, int type) {
     }
 }
 
-
 void FEcycle (Arm a) {
     Instruction components = malloc (sizeof (struct _instruction));
     components -> p = malloc (sizeof (struct _process));
     components -> m = malloc (sizeof (struct _multiply));
     components -> t = malloc (sizeof (struct _transfer));
-    components -> b = malloc (sizeof (struct _branch));
+    components -> b = malloc (sizeof (struct _branch)); 
 
-
+    
     uint32_t instruction = fetch(a); //PC = 0  -> 1
     int type = decode (a, components, instruction);
     instruction = fetch(a); //PC = 1    -> 2
     execute(a, components, type);
     type = decode (a, components, instruction);
-    instruction = fetch(a); //PC = 2    -> 3
+    if (instruction != 0) {
+        instruction = fetch(a); //PC = 2    -> 3
+    }
 
     while (instruction != 0) {
         execute(a, components, type);
+        if (type == 4) {
+            instruction = fetch(a);
+        }
         type = decode (a, components, instruction);
         instruction = fetch(a);
     }
@@ -548,101 +554,14 @@ void FEcycle (Arm a) {
     instruction = fetch(a);
 }
 
-/*void FEcycle(Arm a) {
-    //take current instruction
-
-    do:
-
-    uint32_t instruction = fetch(a);
-    //make instruction struct
-    Instruction components = malloc (sizeof (struct _instruction));
-    //initialise cond
-    components -> Cond = (0xF0000000 & instruction) >> 28;
-
-    int type = decode(a, components, instruction);
-
-    execute(a, components, type);
-
-    while (instruction != 0) {
-
-    }
-
-
-
-    //make instruction struct
-    Instruction components = malloc (sizeof (struct _instruction));
-    //initialise cond
-    components -> Cond = (0xF0000000 & instruction) >> 28;
-
-    if (checkCond (a, components -> Cond)) { //check instruction condition is satisfied
-        int type = decode(components, fetch (a)); //decode initialises relevant values in components
-        //type = the type of instruction
-
-        switch(type) {
-            case 1: executeP(a, components -> p);
-            case 2: executeM(a, components -> m);
-            case 3: executeT(a, components -> t);
-            case 4: executeB(a, components -> b);
-        }
-    } else {
-        //next instruction
-    }
-
-}*/
-
 void printState(Arm a) {
     for (int i = 0; i < 13; i++) {
         printf ("$%i: %i\n", i, a->registers[i]);
     }
 
     printf("PC: %i\n", a->registers[15] * 4);
-    printf("CPSR: %i\n", a->registers[16]);
+    printf("CPSR: %i (%#x)\n", a->registers[16], a->registers[16]);
 }
-/*Son trial
-void FEcycle(Arm a) {
-  uint32_t stageFetch;//instruction currently fetch
-  uint32_t fetched = 0;//the one that fetched in the last loop iteration
-  unin32_t stageDecode = 0;//instruction currently decode
-  uint32_t decoded = 0;//the one decoded last loop iteration
-  uint32_t PC = a->registers[15];
-
-  while (a->memory[PC] != \0){//when memory is not empty
-    // The order of reading is fetch first then decode then execute
-    // so that it will satisfy the spec : the one being fetched
-    // is 2 instructions further than the one being executed.
-    // Since we have to fetch new one before decode old one, decode new one
-    // before execute old one I use fetched and decoded variable to
-    // save the values of old stageFetch and old stageDecode as they will
-    // be overided by the new values
-    stageFetch = fetch(a);//fetch the next one
-    Instruction components = malloc (sizeof (struct _instruction));//initialize stuff
-    if (fetched != 0) {//if there is a thing fetched before then decode it
-      components -> Cond = (0xF0000000 & fetched) >> 28;
-      uint32_t stageDecode = decode(components, Fetched)
-    }
-    if (decoded != 0) {//if there is a thing decoded before then execute it
-      if(checkCond (a, components -> Cond)) {//condition is checked right before the execution
-        switch(decoded) {
-            case 1: executeP(a, components -> p);
-            case 2: executeM(a, components -> m);
-            case 3: executeT(a, components -> t);
-            case 4: executeB(a, components -> b);
-        }
-      }
-    }
-    fetched = stageFetch;//save the instruction fetched in this loop iteration
-    decoded = stageDecode;//save the instruction decoded in this loop iteration
-  }
-
-}*/
-
-/*uint32_t endianSwap(uint32_t instruction) {
-    uint32_t swapped = ((instruction >> 24) & 0x000000ff) |
-                       ((instruction << 8) &0x00ff0000) |
-                       ((instruction >> 8) & 0x0000ff00) |
-                       ((instruction << 24) & 0xff000000);
-    return swapped;
-}   cuz we're boss */
 
 int main (int argc, char** argv) {
     //read the file name from command line scanf
@@ -665,9 +584,6 @@ int main (int argc, char** argv) {
     for (int i = 0; i < 17; i++) {
         a -> registers[i] = 0;
     }
-
-    //print initial state
-    printState(a);
 
     FEcycle(a);
 
