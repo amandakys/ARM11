@@ -221,12 +221,28 @@ void translateB (char *line, Ass a, int position) {
   } else {
     condb = 14 << 28;
   }
-
+  //Finding label position
   char *label = strtok(NULL," ");
+  int labelposition;
   LabelNode current = a -> head;
-
-  int offset = position
-
+  while(current != NULL) {
+    if(strcmp(current -> l, label) == 0) {
+      labelposition = curernt -> p;
+      break;
+    } else {
+      current = current -> next;
+    }
+  }
+  //Finding offset field
+  int offset = position - labelposition;
+  uint32_t offset24bit = offset;
+  uint32_t offset24bit = offset24bit >> 2;
+  //1010 part
+  uint32_t mid = 10 << 24;
+  //Combining to get full instruction
+  uint32_t result = conb | mid | offset24bit;
+  //Reorder bytes & put in memory
+  a -> memory[position] = reorder(result);
 }
 
 //Translate Special
