@@ -1,7 +1,6 @@
 #include <stdlib.h>
-typedef struct _lable *LabelNode;
-typedef struct _ass *Ass;
-typedef struct _process *Process;
+#include <stdint.h>
+#include <stdio.h>
 
 #define PROCESSING 1
 #define MULTIPLY 2
@@ -12,16 +11,20 @@ typedef struct _process *Process;
 #define MAX_ITEMS 16384
 #define MAX_CHARS 511
 
+typedef struct _label *LabelNode;
+typedef struct _ass *Ass;
+typedef struct _process *Process;
 
 typedef struct _ass {
     uint32_t memory[MAX_ITEMS];
-};
+    LabelNode head;
+} _ass;
 
 typedef struct _label {
   char *l;
   int p;
   LabelNode next;
-};
+} _label;
 
 typedef struct _process {
     uint32_t Cond;
@@ -31,18 +34,18 @@ typedef struct _process {
     uint32_t Rn;
     uint32_t Rd;
     uint32_t Operand2;
-} ;
+} _process;
 
 // helper function to add a new label to the symbol table(using linked list)
-void push(node_t * head, char *label, int position) {
-    node_t * current = head;
+void push(LabelNode head, char *label, int position) {
+    LabelNode current = head;
     while (current->next != NULL) {
         current = current->next;
     }
 
     /* now we can add a new variable */
     current->next = malloc(sizeof(LabelNode));
-    current->next->*l = label;
+    current->next->l = label;
     current->next->p = position;
     current->next->next = NULL;
 }
@@ -55,7 +58,7 @@ LabelNode createTable(FILE *fr) {
     char *current = strtok(next,":");
     if(current != next) {
       if(head == NULL) {
-        head = malloc(sizeof (LabelNode))
+        head = malloc(sizeof (LabelNode));
         head->l = current;
         head->p = position;
       } else {
@@ -89,7 +92,7 @@ int identify(char *instruction) {
   } else if ((strcmp(instruction,"beq") == 0)
       || (strcmp(instruction,"bne") == 0) || (strcmp(instruction,"bge") == 0)
       || (strcmp(instruction,"blt") == 0) || (strcmp(instruction,"bgt") == 0)
-      || (strcmp(instruction,"ble") == 0) || (strcmp(instruction,"b") == 0) {
+      || (strcmp(instruction,"ble") == 0) || (strcmp(instruction,"b") == 0)) {
     return BRANCH;
   } else {
     return LABEL;
@@ -114,7 +117,7 @@ uint32_t reorder(uint32_t ins) {
 
 }
 
-void opCodeP(char *mnemonic, PROCESSING p) {
+void opCodeP(char *mnemonic, Process p) {
     p->S = 0 << 20;
     p->Cond = 14 << 28;
     if (strcmp(mnemonic,"and") == 0) {
@@ -144,14 +147,14 @@ void opCodeP(char *mnemonic, PROCESSING p) {
     p->Opcode <<= 21;
 }
 
-void operand2Handler(char *operand2, char *rest, PROCESSING p) {
+void operand2Handler(char *operand2, char *rest, Process p) {
     if (rest == NULL) {
         if (operand2[0] == 'r' ) {
             p->Operand2 = regTrans(operand2);
             p->I = 0;
-        } else if (operand[0] == '#') {
+        } else if (operand2[0] == '#') {
             p->Operand2 = regTrans(operand2);
-            P->I = 1 << 25;
+            p->I = 1 << 25;
         }
     } else {
 
@@ -160,7 +163,7 @@ void operand2Handler(char *operand2, char *rest, PROCESSING p) {
 }
 //Translate Processing
 void translateP(char *ins, Ass a, int pos) {
-    PROCESSING p = malloc(sizeof (struct _process));
+    Process p = malloc(sizeof (struct _process));
     char *mnemonic = strtok(ins," ");
     opCodeP(mnemonic, p);
     p->Rn = regTrans(strtok(NULL," ")) << 16;
@@ -227,7 +230,7 @@ void translateB (char *line, Ass a, int position) {
   LabelNode current = a -> head;
   while(current != NULL) {
     if(strcmp(current -> l, label) == 0) {
-      labelposition = curernt -> p;
+      labelposition = current -> p;
       break;
     } else {
       current = current -> next;
@@ -236,11 +239,11 @@ void translateB (char *line, Ass a, int position) {
   //Finding offset field
   int offset = position - labelposition;
   uint32_t offset24bit = offset;
-  uint32_t offset24bit = offset24bit >> 2;
+  offset24bit = offset24bit >> 2;
   //1010 part
   uint32_t mid = 10 << 24;
   //Combining to get full instruction
-  uint32_t result = conb | mid | offset24bit;
+  uint32_t result = condb | mid | offset24bit;
   //Reorder bytes & put in memory
   a -> memory[position] = reorder(result);
 }
@@ -251,7 +254,7 @@ void translateS(char *ins, Ass a, int pos) {
 }
 
 
-void translate(Ass a, FILE fr, LabelNode head) {
+void translate(Ass a, FILE *fr, LabelNode head) {
   char *next;
   int position = 0;
   while (fgets(next, MAX_CHARS, fr)) {
@@ -288,5 +291,5 @@ int main(int argc, char **argv) {
 
   FILE *fw;
   fw = fopen(argv[1], "wb");
-  fwrite(a -> memory, 4, sizeof (a -> memory), fp);// binary writer
+  fwrite(a -> memory, 4, sizeof (a -> memory), fw);// binary writer
 }
