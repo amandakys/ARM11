@@ -101,17 +101,33 @@ int identify(char *instruction) {
 
 //input "r1" "r2" "r3" and output 1,2,3 in binary
 uint32_t regTrans(char *reg) {
-    if (reg[0] == '\n') { //remove the letter 'r' from r1, r2, ...
+    if (reg[0] != '\n') { //remove the letter 'r' from r1, r2, ...
             memmove(reg, reg+1, strlen(reg));
+    } else {
+        fprintf(stderr,"ERROR: EMPTY STRING!");
     }
     int num = atoi(reg);//get the number in integer
     return (uint32_t) num;
 }
+
+uint32_t convertImm(char *Imm) {
+    if (Imm[0] != '\n') { //remove the character '#' from #341, #0x0ff, ...
+            memmove(Imm, Imm+1, strlen(Imm));
+    } else {
+        fprintf(stderr,"ERROR: EMPTY STRING!");
+    }
+    if (Imm[0] == '0') {
+        return (uint32_t) strtol(Imm, NULL, 0);
+    } else {
+        return (uint32_t) atoi(Imm);
+    }
+
+}
 // reorder the instruction to little-endian
 uint32_t reorder(uint32_t ins) {
-    uint32_t first = ins >> 24;//take the first byte
-    uint32_t second = ((ins >> 16) & ~(1<<8)) << 8;//take the second byte
-    uint32_t third = ((ins >> 8) & ~(1<<8)) << 16;//take the third byte
+    uint32_t first = ins >> 24;                         //take the first byte
+    uint32_t second = ((ins >> 16) & ~(1<<8)) << 8;     //take the second byte
+    uint32_t third = ((ins >> 8) & ~(1<<8)) << 16;      //take the third byte
     uint32_t fourth = ((ins) & ~(1<<8)) << 24;
     return (fourth | third | second | first);
 
@@ -147,50 +163,126 @@ void opCodeP(char *mnemonic, Process p) {
     p->Opcode <<= 21;
 }
 
-void operand2Handler(char *operand2, char *rest, Process p) {
-    if (rest == NULL) {
-        if (operand2[0] == 'r' ) {
-            p->Operand2 = regTrans(operand2);
-            p->I = 0;
-        } else if (operand2[0] == '#') {
-            p->Operand2 = regTrans(operand2);
-            p->I = 1 << 25;
-        }
+//rotate right
+uint32_t ror(uint32_t value, int shift) {
+    if ((shift &= 31) == 0) {                                   //divisible by 32
+        return value;
     } else {
+        return (value >> shift) | (value << (32 - shift));
+    }
+}
 
+//rotate left
+uint32_t rol(uint32_t value, int shift) {
+    if ((shift &= 31) == 0) {                                   //divisible by 32
+        return value;
+    } else {
+        return (value << shift) | (value >> (32 - shift));
+    }
+}
+
+//Find Shift type
+int findShiftType(char *shift) {
+    if(strcmp(shift,"lsl")) {
+        return 0;
+    } else if(strcmp(shift,"lsr")) {
+        return 1;
+    } else if(strcmp(shift,"asr")) {
+        return 2;
+    } else if(strcmp(shift,"ror")) {
+        return 3;
+    } else {
+        fprintf(stderr,"ERROR: CAN NOT FIND SHIFT TYPE");
+    }
+}
+
+//Translate Operand2
+void operand2Handler(char *operand2, char *shType, char *rest, Process p) {
+    if (operand2[0] == 'r' ) {                                  //Operand2 is register
+        uint32_t Rm = regTrans(operand2);
+        if(shType == NULL) {                                    //No shift involved :D
+            p->Operand2 = Rm;
+            p->I = 0;
+        } else {                                                //Yes shift involved :<
+            int shiftType = findShiftType(shType);
+            uint32_t Code;                                      //Opcode of shift type
+            switch (shiftType) {
+                case 0: Code = 0; break;
+                case 1: Code = 1 << 5;
+                case 2: Code = 2 << 5;
+                case 3: Code = 3 << 5;
+            }
+
+            uint32_t Shift;
+
+            if (rest[0] == 'r') {                               //shift by a register
+                uint32_t Rs = regTrans(rest) << 8;
+                Shift = (1<<4) | Code | Rs;
+            } else if (rest[0] == '#') {                        //shift by a constant
+                uint32_t num = convertImm(rest) << 7;
+                Shift = num | Code;
+            }
+
+            p->Operand2 = Rm | Shift;
+        }
+    } else if (operand2[0] == '#') {                            //Operand2 is constant
+        uint32_t value = convertImm(operand2);
+        for (int i =0; i < 16; i ++) {
+            uint32_t shifted = rol(value, i*2) & 0x000000FF;    // rotate left i*2 times, keep the first 8 bits
+            if(ror(shifted, i*2) == value) {                    //rotate right i*2 times with the first 8 bits
+                uint32_t Imm = shifted;
+                uint32_t rotate = (uint32_t) (i*2) << 8;
+                p->Operand2 = shifted | rotate;
+            }
+        }
+        if (p->Operand2 == NULL) {
+            fprintf(stderr,"ERROR: CAN NOT REPRESENT NUMBER!");
+        }
+        p->I = 1 << 25;
+    } else {
+        fprintf(stderr,"ERROR: CAN NOT MATCH SYNTAX");
     }
 
 }
+
+//concatenate stuff in struct _process
+uint32_t concatP(Process p) {
+    return p->Cond | p->I | p->Opcode | p-> S | p->Rn | p->Rd | p->Operand2;
+}
 //Translate Processing
 void translateP(char *ins, Ass a, int pos) {
-    Process p = malloc(sizeof (struct _process));
-    char *mnemonic = strtok(ins," ");
-    opCodeP(mnemonic, p);
-    p->Rn = regTrans(strtok(NULL," ")) << 16;
-    p->Rd = regTrans(strtok(NULL," ")) << 12;
-    char *operand2 = strtok(NULL," ");
-    char *rest = strtok(NULL," ");
-
-
+    Process p = malloc(sizeof (struct _process));               //Initialise struct p
+    char *mnemonic = strtok(ins," ,");                          //read the mnemonic
+    opCodeP(mnemonic, p);                                       //Set opcode based on mnemonic
+    if ((p->Opcode >= 0) & (p->Opcode <= 4) | (p->Opcode == 12)) { //if Opcode is first type
+        p->Rn = regTrans(strtok(NULL," ,")) << 16;              //read Rn
+        p->Rd = regTrans(strtok(NULL," ,")) << 12;              //Read Rd
+        char *operand2 = strtok(NULL," ,");                     //read first part of Operand2: r3, #234
+        char *shType = strtok(NULL," ,");                       //read potential second part of Operand2: lsl, ror
+        char *rest = strtok(NULL," ,");                         //read potential third part of Operand2: r4, r5
+        operand2Handler(operand2, shType, rest, p);             //Magic function that deal with Operand2
+        uint32_t result = concatP(p);                           //Concatenate stuff in Process p
+        a->memory[pos] = reorder(result);                       //Save result in little-endian
+    }
 }
 
 //Translate Multiply
 void translateM(char *ins, Ass a, int pos) {
-    uint32_t Cond = 14 << 28; // Condition field is 1110
-    uint32_t S = 0; // S field is 0
-    char *mnemonic = strtok(ins," ");
+    uint32_t Cond = 14 << 28;                                   // Condition field is 1110
+    uint32_t S = 0;                                             // S field is 0
+    char *mnemonic = strtok(ins," ,");
     uint32_t A = 0;
     if (strcmp(mnemonic,"mul") != 0) {
         A = 1;
     }
-    char *Rds = strtok(NULL," ");
-    uint32_t Rd = regTrans(Rds) << 16;//Rd: bit 16 to bit 19
-    char *Rns = strtok(NULL, " ");
-    uint32_t Rn = regTrans(Rns) << 12;//Rn: bit 12 to bit 15
-    char *Rss = strtok(NULL," ");
-    uint32_t Rs = regTrans(Rss) << 8;//Rs: bit 8 to bit 11
-    uint32_t other = 9 << 4; // the other field is 1001
-    char *Rms = strtok(NULL, " ");
+    char *Rds = strtok(NULL," ,");
+    uint32_t Rd = regTrans(Rds) << 16;                          //Rd: bit 16 to bit 19
+    char *Rns = strtok(NULL, " ,");
+    uint32_t Rn = regTrans(Rns) << 12;                          //Rn: bit 12 to bit 15
+    char *Rss = strtok(NULL," ,");
+    uint32_t Rs = regTrans(Rss) << 8;                           //Rs: bit 8 to bit 11
+    uint32_t other = 9 << 4;                                    // the other field is 1001
+    char *Rms = strtok(NULL, " ,");
     uint32_t Rm = 0;
     if (Rms != NULL) {
         Rm = regTrans(Rms);
