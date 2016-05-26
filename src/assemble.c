@@ -55,8 +55,10 @@ LabelNode createTable(FILE *fr) {
   char *next;
   int position = 0;
   while (fgets(next, MAX_CHARS, fr)) {
+    char temp[strlen(next) + 1]; //duplicating next to used for comparing, 1 for NUL
+    strcpy(temp, next);
     char *current = strtok(next,":");
-    if(current != next) {
+    if(*current != temp) {
       if(head == NULL) {
         head = malloc(sizeof (LabelNode));
         head->l = current;
@@ -201,13 +203,63 @@ void translateM(char *ins, Ass a, int pos) {
 
 //Translate Transfer
 void translateT(char *ins, Ass a, int pos) {
+  uint32_t condb = 0xE4000000; //Cond & 01 part
+  //Determine opreration (ldr or str)
+  char *op = strtok(ins, " ,[]");
+  uint32_t opb = 0;
+  if(strcmp(op, "str") == 0) {
+    opb = 1;
+  }
+  //determine Rd
+  char *rd = strtok(NULL, " ,[]");
+  uint32_t rdb = regTrans(rd);
+  //determine expresstion for oddset, Rn, P fields
+  char *exp = strtok(NULL, " ,[]");
+  uint32_t offsetb;
+  uint32_t rnb;
+  uint32_t pb;
+  uint32_t ub = 1;
+  if(*exp == '=') { // Numeric comstant
+    exp++;
+    uint32_t expb = (uint32_t) strtol(exp, NULL, 0);
+    // Add another if here to make use of mov shortcuttttt
+    int end = MAX_ITEMS;
+    while(true) {
+      if(a -> memory[end] == NULL) {
+        a -> memory[end] = expb;
+        break;
+      }
+      end -= 1;
+    }
+    offsetb = (uint32_t) (end - pos);
+    rnb = (uint32_t) pos;
+  } else { //Pre & Post Indexing
+    char *rn = strtok(NULL, " ,[]");
+    rnb = regTrans(rn);
 
+    char *offset = strtok(NULL, " ,[]");
+    if (*offset != NULL) {
+      if (*(offset + strlen(*offset)) == ']') {
+        pb = 1;
+        *(offset + strlen(*offset)) = '\0'; // remove ']' from offset;
+      } else {
+        pb = 0;
+      }
+      offsetb = (uint32_t) strtol(exp, NULL, 0);
+    } else {
+      offsetb = 0;
+    }
+  }
+
+  uint32_t result = condb | pb << 24 | ub << 23 | opb << 20 | rnb << 16 |
+                    rdb << 12 | offsetb;
+  a -> memory[position] = reorder(result);
 }
 
 //Translate Branch
-void translateB (char *line, Ass a, int position) {
+void translateB (char *ins, Ass a, int position) {
   //Get the cond
-  char *cond = strtok(line," ");
+  char *cond = strtok(ins," ");
   uint32_t condb; // Cond field
   if(strcmp(cond,"beq") == 0) {
     condb = 0;
@@ -238,7 +290,7 @@ void translateB (char *line, Ass a, int position) {
   }
   //Finding offset field
   int offset = position - labelposition;
-  uint32_t offset24bit = offset;
+  uint32_t offset24bit = (uint32_t) offset;
   offset24bit = offset24bit >> 2;
   //1010 part
   uint32_t mid = 10 << 24;
@@ -277,8 +329,8 @@ void translate(Ass a, FILE *fr, LabelNode head) {
 int main(int argc, char **argv) {
   //open binary file to write
   Ass a = malloc (sizeof(struct _ass));
-
-  for (int i = 0; i < 16384; i++) {
+  int i;
+  for (i = 0; i < 16384; i++) {
       a -> memory[i] = 0;
   }
 
