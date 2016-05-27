@@ -18,13 +18,13 @@ typedef struct _process *Process;
 typedef struct _ass {
     uint32_t memory[MAX_ITEMS];
     LabelNode head;
-} _ass;
+} ass;
 
 typedef struct _label {
   char *l;
   int p;
   LabelNode next;
-} _label;
+} label;
 
 typedef struct _process {
     uint32_t Cond;
@@ -34,7 +34,7 @@ typedef struct _process {
     uint32_t Rn;
     uint32_t Rd;
     uint32_t Operand2;
-} _process;
+} process;
 
 // helper function to add a new label to the symbol table(using linked list)
 void push(LabelNode head, char *label, int position) {
@@ -200,11 +200,12 @@ int findShiftType(char *shift) {
 
 //Translate Operand2
 void operand2Handler(char *operand2, char *shType, char *rest, Process p) {
-    if (operand2[0] == 'r' ) {                                  //Operand2 is register
+    if (operand2[0] == 'r' ) {
+        p->I = 0;                                               //Operand2 is register
         uint32_t Rm = regTrans(operand2);
         if(shType == NULL) {                                    //No shift involved :D
             p->Operand2 = Rm;
-            p->I = 0;
+
         } else {                                                //Yes shift involved :<
             int shiftType = findShiftType(shType);
             uint32_t Code;                                      //Opcode of shift type
@@ -227,7 +228,9 @@ void operand2Handler(char *operand2, char *shType, char *rest, Process p) {
 
             p->Operand2 = Rm | Shift;
         }
-    } else if (operand2[0] == '#') {                            //Operand2 is constant
+
+    } else if (operand2[0] == '#') {
+        p->I = 1 << 25;                                         //Operand2 is constant
         uint32_t value = convertImm(operand2);
         for (int i =0; i < 16; i ++) {
             uint32_t shifted = rol(value, i*2) & 0x000000FF;    // rotate left i*2 times, keep the first 8 bits
@@ -240,7 +243,7 @@ void operand2Handler(char *operand2, char *shType, char *rest, Process p) {
         if (p->Operand2 == NULL) {
             fprintf(stderr,"ERROR: CAN NOT REPRESENT NUMBER!");
         }
-        p->I = 1 << 25;
+
     } else {
         fprintf(stderr,"ERROR: CAN NOT MATCH SYNTAX");
     }
@@ -253,12 +256,32 @@ uint32_t concatP(Process p) {
 }
 //Translate Processing
 void translateP(char *ins, Ass a, int pos) {
-    Process p = malloc(sizeof (struct _process));               //Initialise struct p
+    Process p = malloc(sizeof (struct _process));
+    p->Cond = 14 << 25;                                         //Initialise struct p
     char *mnemonic = strtok(ins," ,");                          //read the mnemonic
     opCodeP(mnemonic, p);                                       //Set opcode based on mnemonic
     if ((p->Opcode >= 0) & (p->Opcode <= 4) | (p->Opcode == 12)) { //if Opcode is first type
         p->Rn = regTrans(strtok(NULL," ,")) << 16;              //read Rn
         p->Rd = regTrans(strtok(NULL," ,")) << 12;              //Read Rd
+        char *operand2 = strtok(NULL," ,");                     //read first part of Operand2: r3, #234
+        char *shType = strtok(NULL," ,");                       //read potential second part of Operand2: lsl, ror
+        char *rest = strtok(NULL," ,");                         //read potential third part of Operand2: r4, r5
+        operand2Handler(operand2, shType, rest, p);             //Magic function that deal with Operand2
+        uint32_t result = concatP(p);                           //Concatenate stuff in Process p
+        a->memory[pos] = reorder(result);                       //Save result in little-endian
+    } else if (p->Opcode = 13) {
+        p->Rn = 0;                                              // Rn is ignored
+        p->Rd = regTrans(strtok(NULL," ,")) << 12;              //read Rd
+        char *operand2 = strtok(NULL," ,");                     //read first part of Operand2: r3, #234
+        char *shType = strtok(NULL," ,");                       //read potential second part of Operand2: lsl, ror
+        char *rest = strtok(NULL," ,");                         //read potential third part of Operand2: r4, r5
+        operand2Handler(operand2, shType, rest, p);             //Magic function that deal with Operand2
+        uint32_t result = concatP(p);                           //Concatenate stuff in Process p
+        a->memory[pos] = reorder(result);                       //Save result in little-endian
+    } else {
+        p->S = 1 << 20;                                         // CSPR flags will be updated
+        p->Rn = regTrans(strtok(NULL," ,")) << 16;
+        p->Rd = 0;                                              //Result is not written
         char *operand2 = strtok(NULL," ,");                     //read first part of Operand2: r3, #234
         char *shType = strtok(NULL," ,");                       //read potential second part of Operand2: lsl, ror
         char *rest = strtok(NULL," ,");                         //read potential third part of Operand2: r4, r5
@@ -436,4 +459,11 @@ int main(int argc, char **argv) {
   FILE *fw;
   fw = fopen(argv[1], "wb");
   fwrite(a -> memory, 4, sizeof (a -> memory), fw);// binary writer
+
+  printf("Non-zero memory:\n");
+    for (int i = 0; i < MAX_ITEMS; i++) {
+        if (a->memory[i] != 0) {
+            printf("0x%08x: 0x%08x\n", i*4, a->memory[i]);
+        }
+    }
 }
