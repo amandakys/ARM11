@@ -306,14 +306,14 @@ void translateT(char *ins, Ass a, int pos) {
   char *rd = strtok(NULL, " ,[]");
   uint32_t rdb = regTrans(rd);
   //determine expresstion for oddset, Rn, P fields
-  char *exp = strtok(NULL, " ,[]");
+  char *expr = strtok(NULL, " ,[]");
   uint32_t offsetb;
   uint32_t rnb;
   uint32_t pb;
   uint32_t ub = 1;
-  if(*exp == '=') { // Numeric comstant
-    exp++;
-    uint32_t expb = (uint32_t) strtol(exp, NULL, 0);
+  if(*expr == '=') { // Numeric comstant
+    expr++;
+    uint32_t expb = (uint32_t) strtol(expr, NULL, 0);
     // Add another if here to make use of mov shortcuttttt
     int end = MAX_ITEMS;
     while(true) {
@@ -331,9 +331,9 @@ void translateT(char *ins, Ass a, int pos) {
 
     char *offset = strtok(NULL, " ,[]");
     if (*offset != NULL) {
-      if (*(offset + strlen(*offset)) == ']') {
+      if (*(offset + strlen(offset) - 1) == ']') {
         pb = 1;
-        *(offset + strlen(*offset)) = '\0'; // remove ']' from offset;
+        *(offset + strlen(offset) - 1) = '\0'; // remove ']' from offset;
       } else {
         pb = 0;
       }
