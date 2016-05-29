@@ -360,7 +360,7 @@ void translateT(char *ins, Ass a, int pos) {
       } else {
         pb = 0;
       }
-      offsetb = (uint32_t) strtol(exp, NULL, 0);
+      offsetb = (uint32_t) strtol(offset, NULL, 0);
     } else {
       offsetb = 0;
     }
@@ -368,11 +368,11 @@ void translateT(char *ins, Ass a, int pos) {
 
   uint32_t result = condb | pb << 24 | ub << 23 | opb << 20 | rnb << 16 |
                     rdb << 12 | offsetb;
-  a -> memory[position] = reorder(result);
+  a -> memory[pos] = reorder(result);
 }
 
 //Translate Branch
-void translateB (char *ins, Ass a, int position) {
+void translateB (char *ins, Ass a, int pos) {
   //Get the cond
   char *cond = strtok(ins," ");
   uint32_t condb; // Cond field
@@ -404,7 +404,7 @@ void translateB (char *ins, Ass a, int position) {
     }
   }
   //Finding offset field
-  int offset = position - labelposition;
+  int offset = pos - labelposition;
   uint32_t offset24bit = (uint32_t) offset;
   offset24bit = offset24bit >> 2;
   //1010 part
@@ -412,12 +412,29 @@ void translateB (char *ins, Ass a, int position) {
   //Combining to get full instruction
   uint32_t result = condb | mid | offset24bit;
   //Reorder bytes & put in memory
-  a -> memory[position] = reorder(result);
+  a -> memory[pos] = reorder(result);
 }
 
 //Translate Special
 void translateS(char *ins, Ass a, int pos) {
+  //Get the Mnemonic
+  char *mnemonic = strtok(ins," ,");
+  uint32_t result;
+  if(strcmp(mnemonic, "andeq") == 0) { //All 0 case. Need to check para ???
+    result = 0x00000000;
+  } else {
+    uint32_t condb = 0xE0000000; // Condition field
+    uint32_t opb = 13 << 21; // Opcode Field
+    char *rn = strtok(NULL, " ,"); // get Rn
+    uint32_t rnb = regTrans(rn); // convert Rn to binary(for Rd field)
+    uint32_t shiftTypeb = 0 << 4; //shift type & 0 at bit 4
+    char *expr = strtok(NULL, " ,");
+    uint32_t exprb = (uint32_t) strtol(expr, NULL, 0) << 7; // How TO MAKE SURE THIS FIR IN 5 bit ?
+    exprb &= 0x00000F80; //Just to make sure the integer fit in bit 7-11
 
+    result = condb | opb | rnb << 12/*for Rd field*/| exprb | shiftTypeb | rnb;
+  }
+  a -> memory[pos] = reorder(result);
 }
 
 
