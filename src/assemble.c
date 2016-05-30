@@ -318,54 +318,53 @@ void translateM(char *ins, Ass a, int pos) {
 
 //Translate Transfer
 void translateT(char *ins, Ass a, int pos) {
-  uint32_t condb = 0xE4000000; //Cond & 01 part
+  uint32_t condb = 0xE4000000; //Cond(Ignored) & 01 part
   //Determine opreration (ldr or str)
   char *op = strtok(ins, " ,[]");
-  uint32_t opb = 0;
+  uint32_t opb = 0; // for ldr
   if(strcmp(op, "str") == 0) {
-    opb = 1;
+    opb = 1;  // for str
   }
   //determine Rd
   char *rd = strtok(NULL, " ,[]");
   uint32_t rdb = regTrans(rd);
-  //determine expresstion for oddset, Rn, P fields
+  //determine offset, Rn, P fields from expression input
   char *expr = strtok(NULL, " ,[]");
   uint32_t offsetb;
   uint32_t rnb;
   uint32_t pb;
   uint32_t ub = 1;
   if(*expr == '=') { // Numeric comstant
-    expr++;
-    uint32_t expb = (uint32_t) strtol(expr, NULL, 0);
+    uint32_t expb = convertImm(expr);
     // Add another if here to make use of mov shortcuttttt
     int end = MAX_ITEMS;
-    while(true) {
+    while(1) {
       if(a -> memory[end] == NULL) {
         a -> memory[end] = expb;
         break;
       }
       end -= 1;
     }
-    offsetb = (uint32_t) (end - pos);
-    rnb = (uint32_t) pos;
+    offsetb = (uint32_t) (end - pos); //Calcuate offset
+    rnb = (uint32_t) pos; //PC as based register
   } else { //Pre & Post Indexing
     char *rn = strtok(NULL, " ,[]");
     rnb = regTrans(rn);
 
     char *offset = strtok(NULL, " ,[]");
-    if (*offset != NULL) {
+    if (*offset != NULL) { // have expression after Rn input
       if (*(offset + strlen(offset) - 1) == ']') {
         pb = 1;
-        *(offset + strlen(offset) - 1) = '\0'; // remove ']' from offset;
+        *(offset + strlen(offset) - 1) = '\0';// remove ']' from offset;
       } else {
         pb = 0;
       }
-      offsetb = (uint32_t) strtol(offset, NULL, 0);
-    } else {
+      offsetb = convertImm(offset);//using helper func of translateT
+    } else { // no expression
       offsetb = 0;
     }
   }
-
+  //Combining fields & put in pos
   uint32_t result = condb | pb << 24 | ub << 23 | opb << 20 | rnb << 16 |
                     rdb << 12 | offsetb;
   a -> memory[pos] = reorder(result);
@@ -429,7 +428,7 @@ void translateS(char *ins, Ass a, int pos) {
     uint32_t rnb = regTrans(rn); // convert Rn to binary(for Rd field)
     uint32_t shiftTypeb = 0 << 4; //shift type & 0 at bit 4
     char *expr = strtok(NULL, " ,");
-    uint32_t exprb = (uint32_t) strtol(expr, NULL, 0) << 7; // How TO MAKE SURE THIS FIR IN 5 bit ?
+    uint32_t exprb = (uint32_t) strtol(expr, NULL, 0) << 7; // How TO MAKE SURE THIS FIT IN 5 bit ?
     exprb &= 0x00000F80; //Just to make sure the integer fit in bit 7-11
 
     result = condb | opb | rnb << 12/*for Rd field*/| exprb | shiftTypeb | rnb;
