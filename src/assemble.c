@@ -478,11 +478,14 @@ int main(int argc, char **argv) {
   FILE *fr2;
   fr2 = fopen(argv[1], "r");
 
+
   translate(a, fr2);
   printf("%d",head -> p);
-  /*FILE *fw;
+  FILE *fw;
   fw = fopen(argv[2], "wb");
-  fwrite(a -> memory, 4, sizeof (a -> memory), fw);// binary writer*/
+  fwrite(a -> memory, 4, sizeof (a -> memory), fw);// binary writer
+
+
 
   printf("Non-zero memory:\n");
     for (int i = 0; i < MAX_ITEMS; i++) {
@@ -490,4 +493,5 @@ int main(int argc, char **argv) {
             printf("0x%08x: 0x%08x\n", i*4, a->memory[i]);
         }
     }
+
 }
