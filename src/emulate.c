@@ -204,8 +204,6 @@ void printState(Arm a) {
     for (int i = 0; i < MAX_ITEMS; i++) {
         if (a->memory[i] != 0) {
             printf("0x%08x: 0x%08x\n", i*4, __bswap_32(a->memory[i]));
-        } else {
-
         }
     }
 }
@@ -465,7 +463,69 @@ uint32_t changeByte (int loc, uint32_t byte, uint32_t memory) {
 
     }
 }
+//lololol talk about a massive over complication
+void gpio(uint32_t i, uint32_t value) {
+    int pin = 0;
+    if (i == 0x20200008) {
+        printf("One GPIO pin from 20 to 29 has been accessed");
+        pin = 20;
+    } else if (i == 0x20200004) {
+        printf("One GPIO pin from 10 to 19 has been accessed");
+        GPIO = true;
+        pin = 10;
+    } else if (i == 0x20200000) {
+        printf("One GPIO pin from 0 to 9 has been accessed");
+        GPIO = true;
+    }
 
+    //we have to make sure that value doesn't also set some pin as an input pin
+    //ie change a 001 to a 000
+
+    if ((value | 0) != 0) {
+        //value changes some pin into an output pin
+        //pin needs to be cleared then set
+
+        //determine which pin needs to be cleared
+        uint32_t mask1 = 0x00000007;
+        uint32_t mask2 = 0x00000018;
+        uint32_t mask3 = 0x000000D0;
+
+        for (int i = 0; i < 10; i+3) {
+            if ((value & mask1) == 1) {
+                pin += i;
+                break;
+            }
+            mask1 = mask1 << 9;
+        }
+
+        for (int i = 1; i < 10; i + 3) {
+            if ((value & mask2) == 1) {
+                pin += i;
+                break;
+            }
+            mask2 = mask2 << 9;
+        }
+
+         for (int i = 2; i < 10; i + 3) {
+            if ((value & mask3) == 1) {
+                pin += i;
+                break;
+            }
+            mask3 = mask3 << 9;
+        }
+
+        //set bit ? at memory address 0x20200028 to 1 = CLEAR
+        uint32_t pinbit = 0x00000001 << pin;
+        memory[0x20200028] |= pinbit;
+        printf("PIN OFF");
+
+        //set bit ? at memory address 0x2020001C to 1 = ON
+        uint32_t pinbit = 0x00000001 << pin;
+        memory[0x2020001C] |= pinbit;
+        printf("PIN ON");
+
+    }
+}
 void executeT(Arm a, Transfer t) {
 
     int i; // start of memory position that we want to transfer
@@ -478,7 +538,7 @@ void executeT(Arm a, Transfer t) {
 
     //Check if load from or to memory
     if(t -> L == 1) {
-        //Load from memory
+        //Load to a register
         i = a -> registers[t->Rn];
         // if the memory address is given by the PC
         // multiply by 4 to fix up our dodgy PC storing method
@@ -506,7 +566,20 @@ void executeT(Arm a, Transfer t) {
         //Load to memory
         i = a -> registers[t->Rn];
         i = index (a, t, i); //which address in memory we want to take from
+
         uint32_t value =  __bswap_32(a->registers[t->Rd]);
+
+        if (i == 0x20200008) {
+            printf("One GPIO pin from 20 to 29 has been accessed");
+        } else if (i == 0x20200004) {
+            printf("One GPIO pin from 10 to 19 has been accessed");
+        } else if (i == 0x20200000) {
+            printf("One GPIO pin from 0 to 9 has been accessed");
+        } else if (i == 0x2020001C) {
+            printf("PIN ON");
+        } else if (i == 0x20200028) {
+            printf("PIN OFF");
+        }
 
         if ( i + 3 <= MAX_ITEMS*4 ) {
             uint32_t byte0 = separateByte(0, value);
@@ -519,7 +592,6 @@ void executeT(Arm a, Transfer t) {
             a->memory[(i+2)/4] = changeByte(3 - (i+2)%4, byte2, a->memory[(i+2)/4]);
             a->memory[(i+3)/4] = changeByte(3 - (i+3)%4, byte3, a->memory[(i+3)/4]);
         }
-
     }
 
     if (i > MAX_BYTES){
