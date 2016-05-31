@@ -17,6 +17,7 @@
 #define Cth 29
 #define Vth 28
 #define MAX_ITEMS 16384
+#define MAX_BYTES 65536
 
 typedef struct _arm *Arm;
 typedef struct _process *Process;
@@ -131,7 +132,7 @@ uint32_t calculateShiftAmount(Arm a, uint32_t Operand2) {
     uint32_t shiftAmount;
     if (bit4 == 0) {
             //shift by a constant amount
-            shiftAmount = 0x000000F8 & shift;
+            shiftAmount = (0x000000F8 & shift) >> 3;
     } else {
         //shift by a register
         uint32_t Rs = (0x000000F0 & shift) >> 4;
@@ -158,6 +159,55 @@ uint32_t asr(uint32_t value, int shift) {
         return value >> shift;
     }
 
+}
+
+int numDigits (int num) {
+    if (num < 0) {
+      return (int) (log10(-num) + 2);
+    } else if (num == 0) {
+        return 1;
+    } else {
+        return (int) (log10(num) + 1);
+    }
+}
+void printState(Arm a) {
+    printf("Registers:\n");
+    for (int i = 0; i < 10; i++) {
+        printf ("$%i  : ", i);
+        for (int j = 0; j < (10-numDigits((int)a->registers[i])); j++) {
+            printf(" ");
+        }
+        printf ("%i (0x%08x)\n", a->registers[i], a->registers[i]);
+    }
+
+    for (int i = 10; i < 13; i++) {
+        printf ("$%i : ", i);
+        for (int j = 0; j < (10-numDigits(a->registers[i])); j++) {
+            printf(" ");
+        }
+        printf ("%i (0x%08x)\n", a->registers[i], a->registers[i]);
+    }
+
+    printf("PC  : ");
+    for (int j = 0; j < (10-numDigits(a->registers[15] * 4)); j++) {
+            printf(" ");
+    }
+    printf("%i (0x%08x)\n", a->registers[15] * 4, a->registers[15] * 4);
+
+    printf("CPSR: ");
+    for (int j = 0; j < (10-numDigits(a->registers[16])); j++) {
+            printf(" ");
+    }
+    printf("%i (0x%08x)\n", a->registers[16], a->registers[16]);
+
+     printf("Non-zero memory:\n");
+    for (int i = 0; i < MAX_ITEMS; i++) {
+        if (a->memory[i] != 0) {
+            printf("0x%08x: 0x%08x\n", i*4, __bswap_32(a->memory[i]));
+        } else {
+
+        }
+    }
 }
 
 
@@ -383,45 +433,97 @@ void executeM(Arm a, Multiply m) {
 
 }
 
-void executeT(Arm a, Transfer t) {
-    //Check if immediate offset or as shifted register
-    if(t -> I == 1) {
-        //Offset as shifted register(Op2Register is helper func of executeP)
-        t -> Offset = Op2Register(a, t -> Offset);
-    } else {
-        //Immediate Offset, Do nothing
-    }
-    //Check if load from or to memory
-    if(t -> L == 1) {
-        //Load from memory
-        //it looks so ugly because 1: our way of storing the memory made it
-        // 32-bit word addresable and 2: we also keep the memory in big endian
-        // and should be in little endian
-
-        int i = a -> registers[t->Rn];
-        uint32_t byte0 = separateByte(3-(i%4), a->memory[i/4]) << 24; i++;
-        uint32_t byte1 = separateByte(3-(i%4), a->memory[i/4]) << 16; i++;
-        uint32_t byte2 = separateByte(3-(i%4), a->memory[i/4]) << 8; i++;
-        uint32_t byte3 = separateByte(3-(i%4), a->memory[i/4]);
-
-        uint32_t backwardValue = (byte0 | byte1 | byte2 | byte3);
-        uint32_t rightValue = __bswap_32(backwardValue);
-
-        a -> registers[t -> Rd] = rightValue;
-    } else {
-        //Load to memory
-        a -> memory[a->registers[t -> Rn]] = a -> registers[t -> Rd];
-    }
-    //Check for Post-indexing after transfer
-    if(t -> P == 0) {
+int index (Arm a, Transfer t, int i) {
+    if(t -> P == 0) {//post indexing
         if(t -> U == 1) {
             a -> registers[t -> Rn] += (t -> Offset);
+            //i += (t->Offset);
         } else {
             a -> registers[t -> Rn] -= (t -> Offset);
+            //i -= (t->Offset);
         }
     } else {
         //Pre-indexing, no changes to Rn (according to specs)
+        if(t -> U == 1) {
+            i += (t -> Offset);
+        } else {
+            i -= (t -> Offset);
+        }
+    }
+    return i;
+}
 
+uint32_t changeByte (int loc, uint32_t byte, uint32_t memory) {
+    switch(loc){
+
+    case 0: return (memory & 0x00FFFFFF) | (byte <<24);
+    case 1: return (memory & 0xFF00FFFF) | (byte <<16);
+    case 2: return (memory & 0xFFFF00FF) | (byte <<8);
+    case 3: return (memory & 0xFFFFFF00) |  byte;
+    default: return memory;
+
+
+    }
+}
+
+void executeT(Arm a, Transfer t) {
+
+    int i; // start of memory position that we want to transfer
+
+    //Check if immediate offset or as shifted register
+    if(t -> I == 1) {
+        //Offset as shifted register(Op2Register is helper func of executeP)
+        t->Offset = Op2Register(a, t -> Offset);
+    }
+
+    //Check if load from or to memory
+    if(t -> L == 1) {
+        //Load from memory
+        i = a -> registers[t->Rn];
+        // if the memory address is given by the PC
+        // multiply by 4 to fix up our dodgy PC storing method
+        if (t->Rn == 15) {
+            i *=4;
+        }
+
+        i = index(a, t, i);
+
+        if ( i + 3 <= MAX_ITEMS*4 ) {
+
+             // takes the appropriate 4byte value from memory position i
+            uint32_t byte0 = separateByte(3-(i%4), a->memory[i/4]) << 24; i++;
+            uint32_t byte1 = separateByte(3-(i%4), a->memory[i/4]) << 16; i++;
+            uint32_t byte2 = separateByte(3-(i%4), a->memory[i/4]) << 8; i++;
+            uint32_t byte3 = separateByte(3-(i%4), a->memory[i/4]);
+
+            uint32_t backwardValue = (byte0 | byte1 | byte2 | byte3);
+            uint32_t value = __bswap_32(backwardValue);
+
+            a -> registers[t -> Rd] = value;
+        }
+
+    } else {
+        //Load to memory
+        i = a -> registers[t->Rn];
+        i = index (a, t, i); //which address in memory we want to take from
+        uint32_t value =  __bswap_32(a->registers[t->Rd]);
+
+        if ( i + 3 <= MAX_ITEMS*4 ) {
+            uint32_t byte0 = separateByte(0, value);
+            uint32_t byte1 = separateByte(1, value);
+            uint32_t byte2 = separateByte(2, value);
+            uint32_t byte3 = separateByte(3, value);
+
+            a->memory[i/4] = changeByte(3 - i%4, byte0, a->memory[i/4]);
+            a->memory[(i+1)/4] = changeByte(3 - (i+1)%4, byte1, a->memory[(i+1)/4]);
+            a->memory[(i+2)/4] = changeByte(3 - (i+2)%4, byte2, a->memory[(i+2)/4]);
+            a->memory[(i+3)/4] = changeByte(3 - (i+3)%4, byte3, a->memory[(i+3)/4]);
+        }
+
+    }
+
+    if (i > MAX_BYTES){
+        printf("Error: Out of bounds memory access at address 0x%08x\n", i );
     }
 }
 
@@ -533,7 +635,7 @@ int decode(Arm a, Instruction components, uint32_t instruction) {
     } else {
         mask = 0x02000000;
         uint32_t mask2 = 0x000000F0;
-        if ((instruction & mask) == 1 || (instruction & mask2) != 9) {
+        if (((instruction & mask) >>25) == 1 || ((instruction & mask2) >>4) != 9) {
             //data processing
             //components -> p = malloc (sizeof (struct _process));
             decodeP(components -> p, instruction);
@@ -585,14 +687,7 @@ void FEcycle (Arm a) {
 
 }
 
-void printState(Arm a) {
-    for (int i = 0; i < 13; i++) {
-        printf ("$%i: %i (%#x)\n", i, a->registers[i], a->registers[i]);
-    }
 
-    printf("PC: %i\n", a->registers[15] * 4);
-    printf("CPSR: %i (%#x)\n", a->registers[16], a->registers[16]);
-}
 
 int main (int argc, char** argv) {
     //read the file name from command line scanf
@@ -621,13 +716,6 @@ int main (int argc, char** argv) {
     //print final state
 
     printState(a);
-    printf("Non-zero memory: \n");
-    for (int i = 0; i < MAX_ITEMS; i++) {
-        if (a->memory[i] != 0) {
-            printf("%#x:  %#x\n", i*4, __bswap_32(a->memory[i]));
-        } else {
-            break;
-        }
-    }
+
 
 }
