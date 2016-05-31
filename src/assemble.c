@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 #define PROCESSING 1
 #define MULTIPLY 2
@@ -51,16 +52,16 @@ void push(LabelNode head, char *label, int position) {
 }
 //First pass, going through the list to create symbol table
 LabelNode createTable(FILE *fr) {
-  LabelNode head;
-  char *next;
+  LabelNode head =  malloc(sizeof (LabelNode));
+  head->p = -1;
+  char  next[MAX_CHARS];
   int position = 0;
-  while (fgets(next, MAX_CHARS, fr)) {
+  while (fgets(next, MAX_CHARS, fr) != NULL) {
     char temp[strlen(next) + 1]; //duplicating next to used for comparing, 1 for NUL
     strcpy(temp, next);
     char *current = strtok(next,":");
-    if(*current != temp) {
-      if(head == NULL) {
-        head = malloc(sizeof (LabelNode));
+    if(strcmp(current,temp) != 0) {
+      if(head->p == -1) {
         head->l = current;
         head->p = position;
       } else {
@@ -108,8 +109,8 @@ uint32_t regTrans(char *reg) {
     } else {
         fprintf(stderr,"ERROR: EMPTY STRING!");
     }
-    int num = atoi(reg);//get the number in integer
-    return (uint32_t) num;
+
+    return (uint32_t) strtol(reg, NULL, 10);
 }
 
 uint32_t convertImm(char *Imm) {
@@ -121,16 +122,16 @@ uint32_t convertImm(char *Imm) {
     if (Imm[0] == '0') {
         return (uint32_t) strtol(Imm, NULL, 0);
     } else {
-        return (uint32_t) atoi(Imm);
+        return (uint32_t) strtol(Imm, NULL, 10);
     }
 
 }
 // reorder the instruction to little-endian
 uint32_t reorder(uint32_t ins) {
     uint32_t first = ins >> 24;                         //take the first byte
-    uint32_t second = ((ins >> 16) & ~(1<<8)) << 8;     //take the second byte
-    uint32_t third = ((ins >> 8) & ~(1<<8)) << 16;      //take the third byte
-    uint32_t fourth = ((ins) & ~(1<<8)) << 24;
+    uint32_t second = (ins & 0x00ff0000) >> 8;     //take the second byte
+    uint32_t third = (ins & 0x0000ff00) << 8;      //take the third byte
+    uint32_t fourth = (ins & 0x000000ff) << 24;
     return (fourth | third | second | first);
 
 }
@@ -162,7 +163,7 @@ void opCodeP(char *mnemonic, Process p) {
         p->Opcode = 10;
         p->S = 1 << 20;
     }
-    p->Opcode <<= 21;
+
 }
 
 //rotate right
@@ -195,6 +196,7 @@ int findShiftType(char *shift) {
         return 3;
     } else {
         fprintf(stderr,"ERROR: CAN NOT FIND SHIFT TYPE");
+        return -1;
     }
 }
 
@@ -237,10 +239,11 @@ void operand2Handler(char *operand2, char *shType, char *rest, Process p) {
             if(ror(shifted, i*2) == value) {                    //rotate right i*2 times with the first 8 bits
                 uint32_t Imm = shifted;
                 uint32_t rotate = (uint32_t) (i*2) << 8;
-                p->Operand2 = shifted | rotate;
+                p->Operand2 = Imm | rotate;
+                break;
             }
         }
-        if (p->Operand2 == NULL) {
+        if (p->Operand2 == 0) {
             fprintf(stderr,"ERROR: CAN NOT REPRESENT NUMBER!");
         }
 
@@ -257,38 +260,38 @@ uint32_t concatP(Process p) {
 //Translate Processing
 void translateP(char *ins, Ass a, int pos) {
     Process p = malloc(sizeof (struct _process));
+    p->Operand2 = 0;
     p->Cond = 14 << 25;                                         //Initialise struct p
-    char *mnemonic = strtok(ins," ,");                          //read the mnemonic
+    char *mnemonic = strtok(ins," ,");
+    char *operand2;
+    char *shType;
+    char *rest;                         //read the mnemonic
     opCodeP(mnemonic, p);                                       //Set opcode based on mnemonic
-    if ((p->Opcode >= 0) & (p->Opcode <= 4) | (p->Opcode == 12)) { //if Opcode is first type
-        p->Rn = regTrans(strtok(NULL," ,")) << 16;              //read Rn
-        p->Rd = regTrans(strtok(NULL," ,")) << 12;              //Read Rd
-        char *operand2 = strtok(NULL," ,");                     //read first part of Operand2: r3, #234
-        char *shType = strtok(NULL," ,");                       //read potential second part of Operand2: lsl, ror
-        char *rest = strtok(NULL," ,");                         //read potential third part of Operand2: r4, r5
-        operand2Handler(operand2, shType, rest, p);             //Magic function that deal with Operand2
-        uint32_t result = concatP(p);                           //Concatenate stuff in Process p
-        a->memory[pos] = reorder(result);                       //Save result in little-endian
-    } else if (p->Opcode = 13) {
+    if (((p->Opcode >= 0) & (p->Opcode <= 4)) | (p->Opcode == 12)) { //if Opcode is first type
+        p->Rd = regTrans(strtok(NULL," ,")) << 12;              //read Rn
+        p->Rn = regTrans(strtok(NULL," ,")) << 16;              //Read Rd
+        operand2 = strtok(NULL," ,");                     //read first part of Operand2: r3, #234
+        shType = strtok(NULL," ,");                       //read potential second part of Operand2: lsl, ror
+        rest = strtok(NULL," ,");                         //read potential third part of Operand2: r4, r5
+    } else if ((p->Opcode == 13)) {
         p->Rn = 0;                                              // Rn is ignored
         p->Rd = regTrans(strtok(NULL," ,")) << 12;              //read Rd
-        char *operand2 = strtok(NULL," ,");                     //read first part of Operand2: r3, #234
-        char *shType = strtok(NULL," ,");                       //read potential second part of Operand2: lsl, ror
-        char *rest = strtok(NULL," ,");                         //read potential third part of Operand2: r4, r5
-        operand2Handler(operand2, shType, rest, p);             //Magic function that deal with Operand2
-        uint32_t result = concatP(p);                           //Concatenate stuff in Process p
-        a->memory[pos] = reorder(result);                       //Save result in little-endian
+        operand2 = strtok(NULL," ,");                     //read first part of Operand2: r3, #234
+        shType = strtok(NULL," ,");                       //read potential second part of Operand2: lsl, ror
+        rest = strtok(NULL," ,");                         //read potential third part of Operand2: r4, r5
     } else {
         p->S = 1 << 20;                                         // CSPR flags will be updated
         p->Rn = regTrans(strtok(NULL," ,")) << 16;
         p->Rd = 0;                                              //Result is not written
-        char *operand2 = strtok(NULL," ,");                     //read first part of Operand2: r3, #234
-        char *shType = strtok(NULL," ,");                       //read potential second part of Operand2: lsl, ror
-        char *rest = strtok(NULL," ,");                         //read potential third part of Operand2: r4, r5
-        operand2Handler(operand2, shType, rest, p);             //Magic function that deal with Operand2
-        uint32_t result = concatP(p);                           //Concatenate stuff in Process p
-        a->memory[pos] = reorder(result);                       //Save result in little-endian
+        operand2 = strtok(NULL," ,");                     //read first part of Operand2: r3, #234
+        shType = strtok(NULL," ,");                       //read potential second part of Operand2: lsl, ror
+        rest = strtok(NULL," ,");                         //read potential third part of Operand2: r4, r5
     }
+    operand2Handler(operand2, shType, rest, p);             //Magic function that deal with Operand2
+    p->Opcode <<= 21;
+    uint32_t result = concatP(p);                           //Concatenate stuff in Process p
+    a->memory[pos] = reorder(result);                       //Save result in little-endian
+
 }
 
 //Translate Multiply
@@ -312,7 +315,7 @@ void translateM(char *ins, Ass a, int pos) {
     if (Rms != NULL) {
         Rm = regTrans(Rms);
     }
-    uint32_t result = Cond | A | S | Rd | Rn | Rs | Rm;
+    uint32_t result = Cond | A | S | Rd | Rn | Rs | Rm | other;
     a->memory[pos] = reorder(result);
 }
 
@@ -339,7 +342,7 @@ void translateT(char *ins, Ass a, int pos) {
     // Add another if here to make use of mov shortcuttttt
     int end = MAX_ITEMS;
     while(1) {
-      if(a -> memory[end] == NULL) {
+      if(a -> memory[end] == 0) {
         a -> memory[end] = expb;
         break;
       }
@@ -352,7 +355,7 @@ void translateT(char *ins, Ass a, int pos) {
     rnb = regTrans(rn);
 
     char *offset = strtok(NULL, " ,[]");
-    if (*offset != NULL) { // have expression after Rn input
+    if (offset != NULL) { // have expression after Rn input
       if (*(offset + strlen(offset) - 1) == ']') {
         pb = 1;
         *(offset + strlen(offset) - 1) = '\0';// remove ']' from offset;
@@ -391,7 +394,7 @@ void translateB (char *ins, Ass a, int pos) {
     condb = 14 << 28;
   }
   //Finding label position
-  char *label = strtok(NULL," ");
+  char *label = strtok(NULL," /n");
   int labelposition;
   LabelNode current = a -> head;
   while(current != NULL) {
@@ -437,10 +440,10 @@ void translateS(char *ins, Ass a, int pos) {
 }
 
 
-void translate(Ass a, FILE *fr, LabelNode head) {
-  char *next;
+void translate(Ass a, FILE *fr) {
+  char next[MAX_CHARS];
   int position = 0;
-  while (fgets(next, MAX_CHARS, fr)) {
+  while (fgets(next, MAX_CHARS, fr) != NULL) {
     char *newtemp = calloc(strlen(next) + 1, sizeof(char));
     strcpy(newtemp, next);
     char *mnemonic = strtok(newtemp," ");
@@ -465,16 +468,21 @@ int main(int argc, char **argv) {
       a -> memory[i] = 0;
   }
 
-  FILE *fr;
-  fr = fopen(argv[0], "r");//open string file
+  FILE *fr1;
+  fr1 = fopen(argv[1], "r");//open string file
 
-  LabelNode head = createTable(fr);//list of label with position
+  LabelNode head = createTable(fr1);//list of label with position
 
-  translate(a, fr, head);
+  fclose(fr1);
 
-  FILE *fw;
-  fw = fopen(argv[1], "wb");
-  fwrite(a -> memory, 4, sizeof (a -> memory), fw);// binary writer
+  FILE *fr2;
+  fr2 = fopen(argv[1], "r");
+
+  translate(a, fr2);
+  printf("%d",head -> p);
+  /*FILE *fw;
+  fw = fopen(argv[2], "wb");
+  fwrite(a -> memory, 4, sizeof (a -> memory), fw);// binary writer*/
 
   printf("Non-zero memory:\n");
     for (int i = 0; i < MAX_ITEMS; i++) {
