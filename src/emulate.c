@@ -182,13 +182,13 @@ uint32_t calculateCarry(Arm a, uint32_t Operand2) {
     uint32_t carry = 0;
 
     switch (shiftType) {
-            case 0: carry = (0x80000000 & (value << (shiftAmount - 1))) >> 31;
+            case 0: carry = (0x80000000 & (value << (shiftAmount - 1))) >> 31; break;
 
-            case 1: carry = 0x00000001 & (value >> (shiftAmount - 1));
+            case 1: carry = 0x00000001 & (value >> (shiftAmount - 1)); break;
 
-            case 2: carry = 0x00000001 & (asr(value, shiftAmount - 1));
+            case 2: carry = 0x00000001 & (asr(value, shiftAmount - 1)); break;
 
-            case 3: carry = 0x00000001 & (ror(value, shiftAmount - 1));
+            case 3: carry = 0x00000001 & (ror(value, shiftAmount - 1)); break;
 
     }
 
@@ -204,10 +204,10 @@ uint32_t Op2Register(Arm a, uint32_t Operand2) { //given p->Operand2 it returns 
     uint32_t op2Value = 0;
 
     switch (shiftType) {
-        case 0: op2Value = value << shiftAmount;
-        case 1: op2Value = value >> shiftAmount;
-        case 2: op2Value = asr(value, shiftAmount);
-        case 3: op2Value = ror(value, shiftAmount);
+        case 0: op2Value = value << shiftAmount; break;
+        case 1: op2Value = value >> shiftAmount; break;
+        case 2: op2Value = asr(value, shiftAmount); break;
+        case 3: op2Value = ror(value, shiftAmount); break;
     }
 
     return op2Value;

@@ -272,5 +272,5 @@ int main(int argc, char **argv) {
 
   FILE *fw;
   fw = fopen(argv[1], "wb");
-  fwrite(a -> memory, 4, sizeof (a -> memory), fp);// binary writer
+  fwrite(a -> memory, 4, sizeof (a -> memory), fw);// binary writer
 }
