@@ -46,23 +46,26 @@ void push(LabelNode head, char *label, int position) {
 
     /* now we can add a new variable */
     current->next = malloc(sizeof(LabelNode));
-    current->next->l = label;
+    current->next->l = malloc(MAX_CHARS);
+    strcpy(current->next->l,label);
     current->next->p = position;
     current->next->next = NULL;
 }
 //First pass, going through the list to create symbol table
 LabelNode createTable(FILE *fr) {
   LabelNode head =  malloc(sizeof (LabelNode));
+  head->l = malloc(MAX_CHARS);
   head->p = -1;
-  char  next[MAX_CHARS];
+  char next[MAX_CHARS];
   int position = 0;
+
   while (fgets(next, MAX_CHARS, fr) != NULL) {
     char temp[strlen(next) + 1]; //duplicating next to used for comparing, 1 for NUL
     strcpy(temp, next);
     char *current = strtok(next,":");
     if(strcmp(current,temp) != 0) {
       if(head->p == -1) {
-        head->l = current;
+        strcpy(head->l, current);
         head->p = position;
       } else {
         push(head, current, position);
@@ -238,7 +241,7 @@ void operand2Handler(char *operand2, char *shType, char *rest, Process p) {
             uint32_t shifted = rol(value, i*2) & 0x000000FF;    // rotate left i*2 times, keep the first 8 bits
             if(ror(shifted, i*2) == value) {                    //rotate right i*2 times with the first 8 bits
                 uint32_t Imm = shifted;
-                uint32_t rotate = (uint32_t) (i*2) << 8;
+                uint32_t rotate = (uint32_t) i << 8;
                 p->Operand2 = Imm | rotate;
                 break;
             }
@@ -315,18 +318,19 @@ void translateM(char *ins, Ass a, int pos) {
     if (Rms != NULL) {
         Rm = regTrans(Rms);
     }
+    A <<= 21;
     uint32_t result = Cond | A | S | Rd | Rn | Rs | Rm | other;
     a->memory[pos] = reorder(result);
 }
 
 //Translate Transfer
-void translateT(char *ins, Ass a, int pos) {
+void translateT(char *ins, Ass a, int pos, FILE *fr) {
   uint32_t condb = 0xE4000000; //Cond(Ignored) & 01 part
   //Determine opreration (ldr or str)
   char *op = strtok(ins, " ,[]");
-  uint32_t opb = 0; // for ldr
+  uint32_t opb = 1; // for ldr
   if(strcmp(op, "str") == 0) {
-    opb = 1;  // for str
+    opb = 0;  // for str
   }
   //determine Rd
   char *rd = strtok(NULL, " ,[]");
@@ -394,7 +398,7 @@ void translateB (char *ins, Ass a, int pos) {
     condb = 14 << 28;
   }
   //Finding label position
-  char *label = strtok(NULL," /n");
+  char *label = strtok(NULL," \n");
   int labelposition;
   LabelNode current = a -> head;
   while(current != NULL) {
@@ -406,7 +410,7 @@ void translateB (char *ins, Ass a, int pos) {
     }
   }
   //Finding offset field
-  int offset = pos - labelposition;
+  int offset = labelposition - pos - 4;
   uint32_t offset24bit = (uint32_t) offset;
   offset24bit = offset24bit >> 2;
   //1010 part
@@ -450,7 +454,7 @@ void translate(Ass a, FILE *fr) {
     switch(identify(mnemonic)) {
       case 1: translateP(next, a, position); position += 4; break;
       case 2: translateM(next, a, position); position += 4; break;
-      case 3: translateT(next, a, position); position += 4; break;
+      case 3: translateT(next, a, position, fr); position += 4; break;
       case 4: translateB(next, a, position); position += 4; break;
       case 5: translateS(next, a, position); position += 4; break;
       case 6: break;
@@ -471,16 +475,16 @@ int main(int argc, char **argv) {
   FILE *fr1;
   fr1 = fopen(argv[1], "r");//open string file
 
-  LabelNode head = createTable(fr1);//list of label with position
+  LabelNode head1 = createTable(fr1);//list of label with position
 
   fclose(fr1);
 
   FILE *fr2;
   fr2 = fopen(argv[1], "r");
 
-
+  a->head = head1;
   translate(a, fr2);
-  printf("%d",head -> p);
+  printf("%d",head1 -> p);
   FILE *fw;
   fw = fopen(argv[2], "wb");
   fwrite(a -> memory, 4, sizeof (a -> memory), fw);// binary writer
