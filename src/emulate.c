@@ -464,7 +464,7 @@ uint32_t changeByte (int loc, uint32_t byte, uint32_t memory) {
     }
 }
 //lololol talk about a massive over complication
-void gpio(uint32_t i, uint32_t value) {
+/*void gpio(uint32_t i, uint32_t value) {
     int pin = 0;
     if (i == 0x20200008) {
         printf("One GPIO pin from 20 to 29 has been accessed");
@@ -526,6 +526,7 @@ void gpio(uint32_t i, uint32_t value) {
 
     }
 }
+}*/
 void executeT(Arm a, Transfer t) {
 
     int i; // start of memory position that we want to transfer
