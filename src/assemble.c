@@ -19,7 +19,7 @@ typedef struct _process *Process;
 typedef struct _ass {
     uint32_t memory[MAX_ITEMS];
     LabelNode head;
-    int numLinesWithoutLabels;
+    int numLinesWithoutLabels; // = numlines * 4
 } ass;
 
 typedef struct _label {
@@ -73,7 +73,7 @@ LabelNode createTable(FILE *fr, Ass a) {
       }
     } else {
       position += 4;
-      a->numLinesWithoutLabels++; //only count lines not having labels
+      a->numLinesWithoutLabels+= 4; //only count lines not having labels
     }
 
   }
@@ -326,9 +326,9 @@ void translateM(char *ins, Ass a, int pos) {
 }
 
 int getFilesEnd(Ass a) {
-  int curr = a->numLinesWithoutLabels + 1;
+  int curr = a->numLinesWithoutLabels;
   while(a->memory[curr] != 0) {
-    curr++;
+    curr+= 4;
   }
   return curr;
 }
@@ -340,6 +340,16 @@ void likeMovHandler(uint32_t rdb, uint32_t expb, Ass a, int pos) {
   rdb <<= 12;
   uint32_t result = condb | ib |opb | rdb | expb;
   a->memory[pos] = reorder(result);
+}
+
+int translateExpr(char *offset) {
+  uint32_t offsetb;
+  if(*offset == '=' || *offset == '#') {
+    offsetb = convertImm(offset);
+  } else {
+    offsetb = regTrans(offset);
+  }
+  return offsetb;
 }
 
 //Translate Transfer
@@ -363,7 +373,7 @@ void translateT(char *ins, Ass a, int pos) {
   char *expr = strtok(NULL, " ,[]\n");
   if(*expr == '=') { // Numeric comstant
     ib = 1;
-    uint32_t expb = convertImm(expr);
+    uint32_t expb = translateExpr(expr);
     if(expb <= 0xFF) {
       likeMovHandler(rdb, expb, a, pos);
       return;
@@ -373,11 +383,9 @@ void translateT(char *ins, Ass a, int pos) {
     offsetb = (uint32_t) (end - pos - 4); //Calcuate offset, taking into account 8bit sth effect
     rnb = (uint32_t) pos; //PC as based register
   } else { //Pre & Post Indexing
-    ib = 0;
-    char *rn = strtok(NULL, " ,[]\n");
-    rnb = regTrans(rn);
-
-    char *offset = strtok(NULL, " ,[]\n");
+     ib = 0;
+    rnb = regTrans(expr);
+    char *offset = strtok(NULL, " ,\n");
     if (offset != NULL) { // have expression after Rn input
       if (*(offset + strlen(offset) - 1) == ']') {
         pb = 1;
@@ -385,7 +393,7 @@ void translateT(char *ins, Ass a, int pos) {
       } else {
         pb = 0;
       }
-      offsetb = convertImm(offset);//using helper func of translateT
+      offsetb = translateExpr(offset);//using helper func of translateT
     } else { // no expression
       pb = 1;
       offsetb = 0;
@@ -400,7 +408,7 @@ void translateT(char *ins, Ass a, int pos) {
 //Translate Branch
 void translateB (char *ins, Ass a, int pos) {
   //Get the cond
-  char *cond = strtok(ins," ");
+  char *cond = strtok(ins," \n");
   uint32_t condb; // Cond field
   if(strcmp(cond,"beq") == 0) {
     condb = 0;
@@ -431,8 +439,8 @@ void translateB (char *ins, Ass a, int pos) {
   }
   //Finding offset field
   int offset = labelposition - pos - 4;
-  uint32_t offset24bit = (uint32_t) offset;
-  offset24bit = offset24bit >> 2;
+  int32_t offset24bit = (int32_t) offset;
+  offset24bit = (offset24bit >> 2) & 0x00FFFFFF; //shifted right 2 bit & only store lower 24bit
   //1010 part
   uint32_t mid = 10 << 24;
   //Combining to get full instruction
@@ -453,9 +461,9 @@ void translateS(char *ins, Ass a, int pos) {
     uint32_t opb = 13 << 21; // Opcode Field
     char *rn = strtok(NULL, " ,"); // get Rn
     uint32_t rnb = regTrans(rn); // convert Rn to binary(for Rd field)
-    uint32_t shiftTypeb = 0 << 4; //shift type & 0 at bit 4
-    char *expr = strtok(NULL, " ,");
-    uint32_t exprb = (uint32_t) strtol(expr, NULL, 0) << 7; // How TO MAKE SURE THIS FIT IN 5 bit ?
+    uint32_t shiftTypeb = 0 << 4; //shift type & 0 at bit 4 for integer shift
+    char *expr = strtok(NULL, " ,\n");
+    uint32_t exprb = translateExpr(expr) << 7; // How TO MAKE SURE THIS FIT IN 5 bit ?
     exprb &= 0x00000F80; //Just to make sure the integer fit in bit 7-11
 
     result = condb | opb | rnb << 12/*for Rd field*/| exprb | shiftTypeb | rnb;
