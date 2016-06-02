@@ -72,9 +72,9 @@ LabelNode createTable(FILE *fr, Ass a) {
       } else {
         push(head, current, position);
       }
-    } else {
-      position += 4;
-      a->numLinesWithoutLabels+= 4; //only count lines not having labels
+    } else if(strcmp(strtok(current, " "), "\n") != 0) {
+        position++;
+        a->numLinesWithoutLabels++; //only count lines not having labels
     }
 
   }
@@ -329,7 +329,7 @@ void translateM(char *ins, Ass a, int pos) {
 int getFilesEnd(Ass a) {
   int curr = a->numLinesWithoutLabels;
   while(a->memory[curr] != 0) {
-    curr+= 4;
+    curr++;
   }
   return curr;
 }
@@ -373,16 +373,17 @@ void translateT(char *ins, Ass a, int pos) {
   uint32_t offsetb;
   char *expr = strtok(NULL, " ,[]\n");
   if(*expr == '=') { // Numeric comstant
-    ib = 1;
+    ib = 0;
+    pb = 1;
     uint32_t expb = translateExpr(expr);
     if(expb <= 0xFF) {
       likeMovHandler(rdb, expb, a, pos);
       return;
     }
     int end = getFilesEnd(a);
-    a -> memory[end] = expb;
-    offsetb = (uint32_t) (end - pos - 4); //Calcuate offset, taking into account 8bit sth effect
-    rnb = (uint32_t) pos; //PC as based register
+    a -> memory[end] = reorder(expb);
+    offsetb = (uint32_t) (end - pos - 2) * 4; //Calcuate offset, taking into account 8bit sth effect
+    rnb = 0xF; //PC as based register
   } else { //Pre & Post Indexing
      ib = 0;
     rnb = regTrans(expr);
@@ -392,7 +393,11 @@ void translateT(char *ins, Ass a, int pos) {
         pb = 1;
         *(offset + strlen(offset) - 1) = '\0';// remove ']' from offset;
       } else {
+        ib = 1;
         pb = 0;
+      }
+      if (*offset == 'r') {
+        ib = 1;
       }
       offsetb = translateExpr(offset);//using helper func of translateT
     } else { // no expression
@@ -439,9 +444,10 @@ void translateB (char *ins, Ass a, int pos) {
     }
   }
   //Finding offset field
-  int offset = labelposition - pos - 4;
+  int offset = labelposition - pos - 2;
+  //if(offset < 0) offset++; // for jumping backwards
   int32_t offset24bit = (int32_t) offset;
-  offset24bit = (offset24bit >> 2) & 0x00FFFFFF; //shifted right 2 bit & only store lower 24bit
+  offset24bit = (offset24bit) & 0x00FFFFFF; //shifted right 2 bit & only store lower 24bit
   //1010 part
   uint32_t mid = 10 << 24;
   //Combining to get full instruction
@@ -481,19 +487,12 @@ void translate(Ass a, FILE *fr) {
     strcpy(newtemp, next);
     char *mnemonic = strtok(newtemp," ");
     switch(identify(mnemonic)) {
-<<<<<<< HEAD
       case 1: translateP(next, a, position); position += 1; break;
       case 2: translateM(next, a, position); position += 1; break;
-      case 3: translateT(next, a, position, fr); position += 1; break;
+      case 3: translateT(next, a, position); position += 1; break;
       case 4: translateB(next, a, position); position += 1; break;
       case 5: translateS(next, a, position); position += 1; break;
-=======
-      case 1: translateP(next, a, position); position += 4; break;
-      case 2: translateM(next, a, position); position += 4; break;
-      case 3: translateT(next, a, position); position += 4; break;
-      case 4: translateB(next, a, position); position += 4; break;
-      case 5: translateS(next, a, position); position += 4; break;
->>>>>>> origin/master
+
       case 6: break;
     }
   }
@@ -531,7 +530,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < MAX_ITEMS; i++) {
         if (a->memory[i] != 0) {
             printf("0x%08x: 0x%08x\n", i*4, a->memory[i]);
-            nz++;
+            nz = i+1;
         }
     }
 
