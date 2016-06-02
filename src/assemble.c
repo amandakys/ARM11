@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <byteswap.h>
 
 #define PROCESSING 1
 #define MULTIPLY 2
@@ -189,13 +190,13 @@ uint32_t rol(uint32_t value, int shift) {
 
 //Find Shift type
 int findShiftType(char *shift) {
-    if(strcmp(shift,"lsl")) {
+    if(strcmp(shift,"lsl")==0) {
         return 0;
-    } else if(strcmp(shift,"lsr")) {
+    } else if(strcmp(shift,"lsr")==0) {
         return 1;
-    } else if(strcmp(shift,"asr")) {
+    } else if(strcmp(shift,"asr")==0) {
         return 2;
-    } else if(strcmp(shift,"ror")) {
+    } else if(strcmp(shift,"ror")==0) {
         return 3;
     } else {
         fprintf(stderr,"ERROR: CAN NOT FIND SHIFT TYPE");
@@ -216,9 +217,9 @@ void operand2Handler(char *operand2, char *shType, char *rest, Process p) {
             uint32_t Code;                                      //Opcode of shift type
             switch (shiftType) {
                 case 0: Code = 0; break;
-                case 1: Code = 1 << 5;
-                case 2: Code = 2 << 5;
-                case 3: Code = 3 << 5;
+                case 1: Code = 1 << 5;break;
+                case 2: Code = 2 << 5;break;
+                case 3: Code = 3 << 5;break;
             }
 
             uint32_t Shift;
@@ -263,8 +264,7 @@ uint32_t concatP(Process p) {
 //Translate Processing
 void translateP(char *ins, Ass a, int pos) {
     Process p = malloc(sizeof (struct _process));
-    p->Operand2 = 0;
-    p->Cond = 14 << 25;                                         //Initialise struct p
+    p->Operand2 = 0;                                       //Initialise struct p
     char *mnemonic = strtok(ins," ,");
     char *operand2;
     char *shType;
@@ -308,16 +308,17 @@ void translateM(char *ins, Ass a, int pos) {
     }
     char *Rds = strtok(NULL," ,");
     uint32_t Rd = regTrans(Rds) << 16;                          //Rd: bit 16 to bit 19
-    char *Rns = strtok(NULL, " ,");
-    uint32_t Rn = regTrans(Rns) << 12;                          //Rn: bit 12 to bit 15
+    char *Rms = strtok(NULL, " ,");
+    uint32_t Rm = regTrans(Rms);                          //Rn: bit 12 to bit 15
     char *Rss = strtok(NULL," ,");
     uint32_t Rs = regTrans(Rss) << 8;                           //Rs: bit 8 to bit 11
     uint32_t other = 9 << 4;                                    // the other field is 1001
-    char *Rms = strtok(NULL, " ,");
-    uint32_t Rm = 0;
-    if (Rms != NULL) {
-        Rm = regTrans(Rms);
+    char *Rns = strtok(NULL, " ,");
+    uint32_t Rn = 0;
+    if (Rns != NULL) {
+        Rn = regTrans(Rns);
     }
+    Rn <<= 12;
     A <<= 21;
     uint32_t result = Cond | A | S | Rd | Rn | Rs | Rm | other;
     a->memory[pos] = reorder(result);
@@ -452,11 +453,11 @@ void translate(Ass a, FILE *fr) {
     strcpy(newtemp, next);
     char *mnemonic = strtok(newtemp," ");
     switch(identify(mnemonic)) {
-      case 1: translateP(next, a, position); position += 4; break;
-      case 2: translateM(next, a, position); position += 4; break;
-      case 3: translateT(next, a, position, fr); position += 4; break;
-      case 4: translateB(next, a, position); position += 4; break;
-      case 5: translateS(next, a, position); position += 4; break;
+      case 1: translateP(next, a, position); position += 1; break;
+      case 2: translateM(next, a, position); position += 1; break;
+      case 3: translateT(next, a, position, fr); position += 1; break;
+      case 4: translateB(next, a, position); position += 1; break;
+      case 5: translateS(next, a, position); position += 1; break;
       case 6: break;
     }
   }
@@ -484,18 +485,24 @@ int main(int argc, char **argv) {
 
   a->head = head1;
   translate(a, fr2);
-  printf("%d",head1 -> p);
-  FILE *fw;
-  fw = fopen(argv[2], "wb");
-  fwrite(a -> memory, 4, sizeof (a -> memory), fw);// binary writer
+  //printf("%d",head1 -> p);
+    for (int i = 0; i < MAX_ITEMS; i ++) {
+        a->memory[i] = __bswap_32(a->memory[i]);
+    }
 
-
-
-  printf("Non-zero memory:\n");
+     int nz = 0;
+    printf("Non-zero memory:\n");
     for (int i = 0; i < MAX_ITEMS; i++) {
         if (a->memory[i] != 0) {
             printf("0x%08x: 0x%08x\n", i*4, a->memory[i]);
+            nz++;
         }
     }
+
+
+  FILE *fw;
+  fw = fopen(argv[2], "wb");
+  fwrite(a -> memory, 4, nz, fw);
+  //fwrite(a -> memory, 4, sizeof (a -> memory), fw); binary writer
 
 }
