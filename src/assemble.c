@@ -20,6 +20,7 @@ typedef struct _process *Process;
 typedef struct _ass {
     uint32_t memory[MAX_ITEMS];
     LabelNode head;
+    int numLinesWithoutLabels;
 } ass;
 
 typedef struct _label {
@@ -53,13 +54,13 @@ void push(LabelNode head, char *label, int position) {
     current->next->next = NULL;
 }
 //First pass, going through the list to create symbol table
-LabelNode createTable(FILE *fr) {
+LabelNode createTable(FILE *fr, Ass a) {
   LabelNode head =  malloc(sizeof (LabelNode));
   head->l = malloc(MAX_CHARS);
   head->p = -1;
   char next[MAX_CHARS];
   int position = 0;
-
+  a->numLinesWithoutLabels = 0;
   while (fgets(next, MAX_CHARS, fr) != NULL) {
     char temp[strlen(next) + 1]; //duplicating next to used for comparing, 1 for NUL
     strcpy(temp, next);
@@ -73,6 +74,7 @@ LabelNode createTable(FILE *fr) {
       }
     } else {
       position += 4;
+      a->numLinesWithoutLabels++; //only count lines not having labels
     }
 
   }
@@ -324,42 +326,59 @@ void translateM(char *ins, Ass a, int pos) {
     a->memory[pos] = reorder(result);
 }
 
+int getFilesEnd(Ass a) {
+  int curr = a->numLinesWithoutLabels + 1;
+  while(a->memory[curr] != 0) {
+    curr++;
+  }
+  return curr;
+}
+//This helper function will generate a mov instruction in binary
+void likeMovHandler(uint32_t rdb, uint32_t expb, Ass a, int pos) {
+  uint32_t ib = 1 << 25;
+  uint32_t condb = 14 << 28;
+  uint32_t opb = 13 << 21;
+  rdb <<= 12;
+  uint32_t result = condb | ib |opb | rdb | expb;
+  a->memory[pos] = reorder(result);
+}
+
 //Translate Transfer
-void translateT(char *ins, Ass a, int pos, FILE *fr) {
+void translateT(char *ins, Ass a, int pos) {
   uint32_t condb = 0xE4000000; //Cond(Ignored) & 01 part
   //Determine opreration (ldr or str)
-  char *op = strtok(ins, " ,[]");
+  char *op = strtok(ins, " ,[]"); // L field
   uint32_t opb = 1; // for ldr
   if(strcmp(op, "str") == 0) {
     opb = 0;  // for str
   }
   //determine Rd
-  char *rd = strtok(NULL, " ,[]");
+  char *rd = strtok(NULL, " ,[]\n");
   uint32_t rdb = regTrans(rd);
   //determine offset, Rn, P fields from expression input
-  char *expr = strtok(NULL, " ,[]");
-  uint32_t offsetb;
-  uint32_t rnb;
+  uint32_t ib;
   uint32_t pb;
   uint32_t ub = 1;
+  uint32_t rnb;
+  uint32_t offsetb;
+  char *expr = strtok(NULL, " ,[]\n");
   if(*expr == '=') { // Numeric comstant
+    ib = 1;
     uint32_t expb = convertImm(expr);
-    // Add another if here to make use of mov shortcuttttt
-    int end = MAX_ITEMS;
-    while(1) {
-      if(a -> memory[end] == 0) {
-        a -> memory[end] = expb;
-        break;
-      }
-      end -= 1;
+    if(expb <= 0xFF) {
+      likeMovHandler(rdb, expb, a, pos);
+      return;
     }
-    offsetb = (uint32_t) (end - pos); //Calcuate offset
+    int end = getFilesEnd(a);
+    a -> memory[end] = expb;
+    offsetb = (uint32_t) (end - pos - 4); //Calcuate offset, taking into account 8bit sth effect
     rnb = (uint32_t) pos; //PC as based register
   } else { //Pre & Post Indexing
-    char *rn = strtok(NULL, " ,[]");
+    ib = 0;
+    char *rn = strtok(NULL, " ,[]\n");
     rnb = regTrans(rn);
 
-    char *offset = strtok(NULL, " ,[]");
+    char *offset = strtok(NULL, " ,[]\n");
     if (offset != NULL) { // have expression after Rn input
       if (*(offset + strlen(offset) - 1) == ']') {
         pb = 1;
@@ -369,12 +388,13 @@ void translateT(char *ins, Ass a, int pos, FILE *fr) {
       }
       offsetb = convertImm(offset);//using helper func of translateT
     } else { // no expression
+      pb = 1;
       offsetb = 0;
     }
   }
   //Combining fields & put in pos
-  uint32_t result = condb | pb << 24 | ub << 23 | opb << 20 | rnb << 16 |
-                    rdb << 12 | offsetb;
+  uint32_t result = condb | ib << 25 | pb << 24 | ub << 23 | opb << 20 |
+                    rnb << 16 | rdb << 12 | offsetb;
   a -> memory[pos] = reorder(result);
 }
 
@@ -453,11 +473,19 @@ void translate(Ass a, FILE *fr) {
     strcpy(newtemp, next);
     char *mnemonic = strtok(newtemp," ");
     switch(identify(mnemonic)) {
+<<<<<<< HEAD
       case 1: translateP(next, a, position); position += 1; break;
       case 2: translateM(next, a, position); position += 1; break;
       case 3: translateT(next, a, position, fr); position += 1; break;
       case 4: translateB(next, a, position); position += 1; break;
       case 5: translateS(next, a, position); position += 1; break;
+=======
+      case 1: translateP(next, a, position); position += 4; break;
+      case 2: translateM(next, a, position); position += 4; break;
+      case 3: translateT(next, a, position); position += 4; break;
+      case 4: translateB(next, a, position); position += 4; break;
+      case 5: translateS(next, a, position); position += 4; break;
+>>>>>>> origin/master
       case 6: break;
     }
   }
@@ -476,7 +504,7 @@ int main(int argc, char **argv) {
   FILE *fr1;
   fr1 = fopen(argv[1], "r");//open string file
 
-  LabelNode head1 = createTable(fr1);//list of label with position
+  LabelNode head1 = createTable(fr1, a);//list of label with position
 
   fclose(fr1);
 
