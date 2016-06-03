@@ -29,6 +29,12 @@ typedef struct _instruction *Instruction;
 typedef struct _arm {
     uint32_t registers[17];
     uint32_t memory[MAX_ITEMS];
+    uint32_t gpio[5];
+    //0x20200000 = 0
+    //0x20200004 = 1
+    //0x20200008 = 2
+    //0x2020001C = 3
+    //0x20200028 = 4
 } arm;
 
 typedef struct _instruction {
@@ -228,8 +234,10 @@ uint32_t calculateCarry(Arm a, uint32_t Operand2) {
     uint32_t shiftType = (0x00000006 & shift) >> 1;
     uint32_t shiftAmount = calculateShiftAmount(a, Operand2);
     uint32_t carry = 0;
-
-    switch (shiftType) {
+    if (shiftAmount == 0) {
+        //do nothing
+    } else {
+        switch (shiftType) {
             case 0: carry = (0x80000000 & (value << (shiftAmount - 1))) >> 31; break;
 
             case 1: carry = 0x00000001 & (value >> (shiftAmount - 1)); break;
@@ -238,6 +246,7 @@ uint32_t calculateCarry(Arm a, uint32_t Operand2) {
 
             case 3: carry = 0x00000001 & (ror(value, shiftAmount - 1)); break;
 
+        }
     }
 
     return carry;
@@ -525,8 +534,47 @@ uint32_t changeByte (int loc, uint32_t byte, uint32_t memory) {
         printf("PIN ON");
 
     }
-}
 }*/
+
+bool isGPIO(int i) {
+    return (i == 0x20200008 || i == 0x20200004 || i == 0x20200000 || i == 0x2020001C || i == 0x20200028 );
+}
+
+
+void loadGPIO(int i) {
+    if (i == (0x20200008)) {
+        printf("One GPIO pin from 20 to 29 has been accessed\n");
+    } else if (i == (0x20200004)) {
+        printf("One GPIO pin from 10 to 19 has been accessed\n");
+    } else if (i == (0x20200000)) {
+        printf("One GPIO pin from 0 to 9 has been accessed\n");
+    } else if (i == (0x2020001C)) {
+        printf("PIN ON\n");
+    } else if (i == (0x20200028)) {
+        printf("PIN OFF\n");
+    }
+}
+
+void storeGPIO(Arm a, int i, int value) {
+    if (i == (0x20200008)) {
+        printf("One GPIO pin from 20 to 29 has been accessed\n");
+        a->gpio[2] = value;
+    } else if (i == (0x20200004)) {
+        printf("One GPIO pin from 10 to 19 has been accessed\n");
+        a->gpio[1] = value;
+    } else if (i == (0x20200000)) {
+        printf("One GPIO pin from 0 to 9 has been accessed\n");
+        a->gpio[0] = value;
+    } else if (i == (0x2020001C)) {
+        printf("PIN ON\n");
+        a->gpio[3] = value;
+    } else if (i == (0x20200028)) {
+        printf("PIN OFF\n");
+        a->gpio[4] = value;
+    }
+}
+
+
 void executeT(Arm a, Transfer t) {
 
     int i; // start of memory position that we want to transfer
@@ -549,7 +597,12 @@ void executeT(Arm a, Transfer t) {
 
         i = index(a, t, i);
 
-        if ( i + 3 <= MAX_ITEMS*4 ) {
+        loadGPIO(i);
+
+        if (isGPIO(i)) {
+            //store i as a constant in register
+            a->registers[t->Rd] = i;
+        } else if ( i + 3 <= MAX_ITEMS*4) {
 
              // takes the appropriate 4byte value from memory position i
             uint32_t byte0 = separateByte(3-(i%4), a->memory[i/4]) << 24; i++;
@@ -564,23 +617,13 @@ void executeT(Arm a, Transfer t) {
         }
 
     } else {
-        //Load to memory
+        //store to memory
         i = a -> registers[t->Rn];
         i = index (a, t, i); //which address in memory we want to take from
 
         uint32_t value =  __bswap_32(a->registers[t->Rd]);
 
-        if (i == 0x20200008) {
-            printf("One GPIO pin from 20 to 29 has been accessed");
-        } else if (i == 0x20200004) {
-            printf("One GPIO pin from 10 to 19 has been accessed");
-        } else if (i == 0x20200000) {
-            printf("One GPIO pin from 0 to 9 has been accessed");
-        } else if (i == 0x2020001C) {
-            printf("PIN ON");
-        } else if (i == 0x20200028) {
-            printf("PIN OFF");
-        }
+        storeGPIO(a, i, value);
 
         if ( i + 3 <= MAX_ITEMS*4 ) {
             uint32_t byte0 = separateByte(0, value);
@@ -596,7 +639,11 @@ void executeT(Arm a, Transfer t) {
     }
 
     if (i > MAX_BYTES){
-        printf("Error: Out of bounds memory access at address 0x%08x\n", i );
+        if (isGPIO(i)) {
+            //special cases
+        } else {
+            printf("Error: Out of bounds memory access at address 0x%08x\n", i );
+        }
     }
 }
 
