@@ -11,7 +11,7 @@
 				<Option object_output="obj/Debug/" />
 				<Option type="1" />
 				<Option compiler="gcc" />
-				<Option parameters="/homes/tsd15/Desktop/arm11_41/src/arm11_1516_testsuite/test_cases/b01.s" />
+				<Option parameters="/homes/dtv15/arm11_41/src/arm11_1516_testsuite/test_cases/gpio_0.s out" />
 				<Compiler>
 					<Add option="-g" />
 				</Compiler>

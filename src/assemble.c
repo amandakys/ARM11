@@ -125,6 +125,9 @@ uint32_t convertImm(char *Imm) {
     } else {
         fprintf(stderr,"ERROR: EMPTY STRING!");
     }
+    if (Imm[0] == '+' || Imm[0] == '-') {
+        memmove(Imm, Imm+1, strlen(Imm));
+    }
     if (Imm[0] == '0') {
         return (uint32_t) strtol(Imm, NULL, 0);
     } else {
@@ -216,7 +219,7 @@ void operand2Handler(char *operand2, char *shType, char *rest, Process p) {
 
         } else {                                                //Yes shift involved :<
             int shiftType = findShiftType(shType);
-            uint32_t Code;                                      //Opcode of shift type
+            uint32_t Code = 0;                                      //Opcode of shift type
             switch (shiftType) {
                 case 0: Code = 0; break;
                 case 1: Code = 1 << 5;break;
@@ -224,7 +227,7 @@ void operand2Handler(char *operand2, char *shType, char *rest, Process p) {
                 case 3: Code = 3 << 5;break;
             }
 
-            uint32_t Shift;
+            uint32_t Shift = 0;
 
             if (rest[0] == 'r') {                               //shift by a register
                 uint32_t Rs = regTrans(rest) << 8;
@@ -348,7 +351,16 @@ int translateExpr(char *offset) {
   if(*offset == '=' || *offset == '#') {
     offsetb = convertImm(offset);
   } else {
-    offsetb = regTrans(offset);
+    if (*offset == '+' || *offset == '-') {
+      offset++; //get rid of + and -
+    }
+    char *rm = strtok(offset, " ,");
+    char *shType = strtok(NULL, " ,");
+    char *rest = strtok(NULL, " ,");
+    Process p = malloc(sizeof (struct _process));
+    p->Operand2 = 0;
+    operand2Handler(rm, shType, rest, p); //Helper func of translateP above
+    offsetb = p->Operand2;
   }
   return offsetb;
 }
@@ -372,35 +384,37 @@ void translateT(char *ins, Ass a, int pos) {
   uint32_t rnb;
   uint32_t offsetb;
   char *expr = strtok(NULL, " ,[]\n");
-  if(*expr == '=') { // Numeric comstant
+  if(*expr == '=') { // Numeric constant, ldr ONLY
     ib = 0;
-    pb = 1;
-    uint32_t expb = translateExpr(expr);
+    pb = 1; // pre-indexed address
+    rnb = 0xF; //PC as based register
+    uint32_t expb = translateExpr(expr); // turn expr into binary form
     if(expb <= 0xFF) {
+      // this function will treat this as a mov instruction
       likeMovHandler(rdb, expb, a, pos);
       return;
-    }
+    } // reach here if expr > 0xFF & can not fit in mov instruction
     int end = getFilesEnd(a);
     a -> memory[end] = reorder(expb);
-    offsetb = (uint32_t) (end - pos - 2) * 4; //Calcuate offset, taking into account 8bit sth effect
-    rnb = 0xF; //PC as based register
-  } else { //Pre & Post Indexing
+    offsetb = (uint32_t) (end - pos - 2) * 4; //Calculate offset, taking into account 8bit sth effect
+  } else { //Pre & Post Indexing, BOTH ldr & str
      ib = 0;
     rnb = regTrans(expr);
-    char *offset = strtok(NULL, " ,\n");
+    //get rid of the first ','
+    char *offset = strtok(NULL, "\n"); // get till the end of line
     if (offset != NULL) { // have expression after Rn input
-      if (*(offset + strlen(offset) - 1) == ']') {
+      if (*(offset + strlen(offset) - 1) == ']') { // pre-index cases
         pb = 1;
         *(offset + strlen(offset) - 1) = '\0';// remove ']' from offset;
-      } else {
-        ib = 1;
+      } else { // post- index cases
         pb = 0;
       }
-      if (*offset == 'r') {
-        ib = 1;
-      }
-      offsetb = translateExpr(offset);//using helper func of translateT
-    } else { // no expression
+      if (*offset == ',') offset ++;
+      if (*offset == 'r') ib = 1; // check if offset is a register then set i = 1
+      // otherwise it is a constant then leave i = 0
+      if (*offset == '-' || *(offset + 1) == '-') ub = 0; // set u bit if it is minus, shift case & #expression case
+      offsetb = translateExpr(offset); //translate offset part
+    } else { // no expression, just have [Rn], a post-index case
       pb = 1;
       offsetb = 0;
     }
@@ -433,7 +447,7 @@ void translateB (char *ins, Ass a, int pos) {
   }
   //Finding label position
   char *label = strtok(NULL," \n");
-  int labelposition;
+  int labelposition = 0;
   LabelNode current = a -> head;
   while(current != NULL) {
     if(strcmp(current -> l, label) == 0) {
