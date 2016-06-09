@@ -7,6 +7,8 @@ mov r2,#7
 lsl r2,#23
 
 loop:
+mov r4,#0
+str r4,[r0,#40]
 str r2,[r0,#40] 
 mov r4,#100
 
