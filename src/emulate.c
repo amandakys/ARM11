@@ -30,7 +30,7 @@ typedef struct _arm {
     uint32_t registers[17];
     uint32_t memory[MAX_ITEMS];
     uint32_t gpio[5];
-    //0x20200000 = 0
+    //0x20200000 =  0
     //0x20200004 = 1
     //0x20200008 = 2
     //0x2020001C = 3
